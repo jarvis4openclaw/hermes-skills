@@ -1,0 +1,9 @@
+{
+  "last_report_path": "/home/wahid/.hermes/logs/curator/20260528-180148",
+  "last_run_at": "2026-05-28T18:01:48.693058+00:00",
+  "last_run_duration_seconds": 116.738853,
+  "last_run_summary": "auto: no changes; llm: no change",
+  "last_run_summary_shown_at": "2026-05-28T18:01:48.693058+00:00",
+  "paused": false,
+  "run_count": 2
+}

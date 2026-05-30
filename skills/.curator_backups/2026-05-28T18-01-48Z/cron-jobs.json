@@ -1,0 +1,440 @@
+{
+  "jobs": [
+    {
+      "id": "2ecec1e328e8",
+      "name": "xlikes-server-keepalive",
+      "prompt": "Run /home/wahid/clawd/scripts/xlikes-keepalive.sh to ensure X Likes server is running. Report only if there's an issue.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 * * * *",
+        "display": "0 * * * *"
+      },
+      "schedule_display": "0 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 1310
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-03-29T11:27:28.178458-05:00",
+      "next_run_at": "2026-05-28T14:00:00-05:00",
+      "last_run_at": "2026-05-28T13:00:48.652094-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8089291845",
+        "chat_name": "Wahid X",
+        "thread_id": null
+      },
+      "last_delivery_error": null
+    },
+    {
+      "id": "6bbf8df9197d",
+      "name": "nightly-memory-maintenance",
+      "prompt": "Nightly memory maintenance:\n1. Review MEMORY.md \u2014 move any tool configs, service details, SSH info, URLs, or operational references to TOOLS.md if they don't belong. MEMORY.md = personal context only.\n2. Review memory/lessons.md \u2014 check if any lessons from recent daily notes should be promoted there.\n3. Remove any obviously outdated context from MEMORY.md.\n4. Log what you changed in today's daily notes (memory/YYYY-MM-DD.md) under 'Memory Maintenance'.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 0 * * *",
+        "display": "0 0 * * *"
+      },
+      "schedule_display": "0 0 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 55
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-03-29T11:27:59.502493-05:00",
+      "next_run_at": "2026-05-29T00:00:00-05:00",
+      "last_run_at": "2026-05-28T00:01:36.499275-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8089291845",
+        "chat_name": "Wahid X",
+        "thread_id": null
+      },
+      "last_delivery_error": null
+    },
+    {
+      "id": "29a3a73e1e36",
+      "name": "daily-proxmox-detailed-report",
+      "prompt": "Run detailed Proxmox resource report: cd /home/wahid/clawd && source .venv/bin/activate && source ~/.proxmox-credentials && python3 scripts/proxmox_detailed_report.py\n\nReport the output to the user. Include any warnings about resource usage.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 7 * * *",
+        "display": "0 7 * * *"
+      },
+      "schedule_display": "0 7 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 55
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-03-29T11:28:04.613615-05:00",
+      "next_run_at": "2026-05-29T07:00:00-05:00",
+      "last_run_at": "2026-05-28T07:00:56.862599-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8089291845",
+        "chat_name": "Wahid X",
+        "thread_id": null
+      },
+      "last_delivery_error": null
+    },
+    {
+      "id": "bbea479f9b2d",
+      "name": "byterover-knowledge-miner",
+      "prompt": "DAILY KNOWLEDGE MINING:\n1. Read the latest file in memory/ (e.g. memory/YYYY-MM-DD.md for today or yesterday's date).\n2. Extract architectural decisions, reusable patterns, or critical bug fixes.\n3. If valuable info is found, run '/home/wahid/.brv-cli/bin/brv curate \"<summary>\"' to save it to the Context Tree.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * *",
+        "display": "0 9 * * *"
+      },
+      "schedule_display": "0 9 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 56
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-03-29T11:28:11.282037-05:00",
+      "next_run_at": "2026-05-29T09:00:00-05:00",
+      "last_run_at": "2026-05-28T09:01:26.496429-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "deliver": "local",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8089291845",
+        "chat_name": "Wahid X",
+        "thread_id": null
+      },
+      "last_delivery_error": null
+    },
+    {
+      "id": "4432beb5e302",
+      "name": "weekly-x-likes-update",
+      "prompt": "Weekly X Likes site update via Windows SSH: Run /home/wahid/clawd/scripts/xbookmarks-update-bird.sh to fetch likes from bird CLI using Chrome cookies on Windows, then regenerate the site. Report success or failure.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 23 * * 4",
+        "display": "0 23 * * 4"
+      },
+      "schedule_display": "0 23 * * 4",
+      "repeat": {
+        "times": null,
+        "completed": 11
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-03-29T11:28:15.873012-05:00",
+      "next_run_at": "2026-05-28T23:00:00-05:00",
+      "last_run_at": "2026-05-21T23:05:26.040512-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8089291845",
+        "chat_name": "Wahid X",
+        "thread_id": null
+      },
+      "last_delivery_error": null
+    },
+    {
+      "id": "b390289f506d",
+      "name": "signal-scheduler-auto-sync",
+      "prompt": "Run /home/wahid/clawd/signal-scheduler/sync-to-github.sh to automatically commit and push any changes to the signal-scheduler repo. Report only if changes were pushed or if there was an error.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 0 * * *",
+        "display": "0 0 * * *"
+      },
+      "schedule_display": "0 0 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 54
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-01T15:59:32.119026-05:00",
+      "next_run_at": "2026-05-29T00:00:00-05:00",
+      "last_run_at": "2026-05-28T00:00:17.196172-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "deliver": "local",
+      "origin": null,
+      "last_delivery_error": null
+    },
+    {
+      "id": "776c88af787c",
+      "name": "cd /home/wahid/clawd/x-bookmarks && ./xbookmarks-u",
+      "prompt": "cd /home/wahid/clawd/x-bookmarks && ./xbookmarks-update",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 6 */2 * *",
+        "display": "0 6 */2 * *"
+      },
+      "schedule_display": "0 6 */2 * *",
+      "repeat": {
+        "times": null,
+        "completed": 26
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-01T16:58:18.801049-05:00",
+      "next_run_at": "2026-05-29T06:00:00-05:00",
+      "last_run_at": "2026-05-27T06:01:26.575007-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "deliver": "local",
+      "origin": null,
+      "last_delivery_error": null
+    },
+    {
+      "id": "262dcfb535f5",
+      "name": "hermes-agent-self-evolution",
+      "prompt": "Run a Hermes Agent self-evolution cycle.\n\nGoal: Improve reliability and reuse without external side effects.\n\nSteps:\n1) Review recent work patterns using session_search (recent + keyword checks for repeated failures).\n2) Identify one high-impact improvement from the last 24h (missing step, outdated skill, recurring error, or preventable user correction).\n3) If a durable workflow fix is clear, update or create a skill with skill_manage.\n4) If a user preference/environment fact is discovered and durable, store it with memory.\n5) Produce a concise report with:\n   - What changed\n   - Why it matters\n   - How to verify it next run\n6) If no meaningful improvement is found, report \"No safe improvement found\" with the top blocker.\n\nConstraints:\n- No external network actions unless explicitly required by the task.\n- Do not create, update, or trigger cron jobs.\n- Keep output brief and actionable.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 2 * * *",
+        "display": "0 2 * * *"
+      },
+      "schedule_display": "0 2 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 50
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-03T14:22:47.636176-05:00",
+      "next_run_at": "2026-05-29T02:00:00-05:00",
+      "last_run_at": "2026-05-28T02:02:14.516154-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "deliver": "origin",
+      "origin": null,
+      "last_delivery_error": null
+    },
+    {
+      "id": "761d389e1e36",
+      "name": "hermes-self-evolution-evaluator",
+      "prompt": "Run a Hermes Agent self-evolution cycle focused on Phase 1 skill optimization using DSPy+GEPA. Goal: Improve reliability and reuse without external side effects. Steps:\n\n1. Select target skills from SKILLS.md\n2. Build evaluation dataset (synthetic + SessionDB mining)\n3. Wrap skills as DSPy modules\n4. Run GEPA optimization (5-10 iterations)\n5. Compare baseline vs evolved on holdout set\n6. Human review of diffs\n7. Create PR with metrics\n\nDeliver: origin\nSchedule: 30 2 * * * (night)",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 4 * * *",
+        "display": "0 4 * * *"
+      },
+      "schedule_display": "0 4 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 50
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-03T14:22:48.643849-05:00",
+      "next_run_at": "2026-05-29T04:00:00-05:00",
+      "last_run_at": "2026-05-28T04:06:42.490897-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "deliver": "origin",
+      "origin": null,
+      "last_delivery_error": null
+    },
+    {
+      "id": "3c713b04ec2a",
+      "name": "openrouter-free-model-detector",
+      "prompt": "Run the OpenRouter free model detector script and report results.\n\nStep 1: Run the detection script:\n```\npython3 /home/wahid/.hermes/scripts/detect-new-free-models.py\n```\n\nStep 2: Check the output prefix and handle each case:\n\n**NEW_MODELS:** \u2014 New free model detected! Extract the JSON after the prefix. For each model in `new_models`, send a Telegram notification:\n\n\ud83c\udd95 New OpenRouter Free Model!\n\nModel: {id}\nContext: {ctx:,} tokens\nReasoning: {reasoning}\nTotal top-tier free models: {total_top_tier}\n\nAsk the user: \"Want me to add this to the Hermes model catalog?\"\n\n**EXPIRED_MODELS:** \u2014 A model is no longer free! Extract the JSON after the prefix. For each model in `expired_models`, send a Telegram notification:\n\n\u26a0\ufe0f OpenRouter Model No Longer Free!\n\nModel: {id}\nContext was: {ctx:,} tokens\nExpired at: {expired_at}\nFirst seen: {first_seen}\n\nThis model has been removed from the free tier. If it's configured anywhere in Hermes (default model, fallback, auxiliary, smart routing, delegation), it should be replaced. Check config.yaml for any references to this model ID.\n\n**NEW_AND_EXPIRED:** \u2014 Handle both notifications above.\n\n**NO_CHANGE:** \u2014 Exit silently, do nothing.\n\nOnly send notifications for NEW_MODELS and/or EXPIRED_MODELS. Never spam on no-change.",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 10 * * *",
+        "display": "0 10 * * *"
+      },
+      "schedule_display": "0 10 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 14
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-05-14T14:32:31.634357-05:00",
+      "next_run_at": "2026-05-29T10:00:00-05:00",
+      "last_run_at": "2026-05-28T10:02:16.990770-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8089291845",
+        "chat_name": "Wahid X",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "4371efc4b7f1",
+      "name": "weekly-server-health-check",
+      "prompt": "Run the server health check skill at /home/wahid/clawd/agents/friday/skills/server-health/SKILL.md.\n\nFollow the skill's process exactly:\n1. Check disk usage (df -h) \u2014 flag if >75%\n2. Check memory & CPU (free -h, uptime, nproc) \u2014 flag if memory >85% or load > cores\n3. Check service status (openclaw-gateway, curl health endpoint)\n4. Check log rotation (large logs, logrotate configs)\n5. Check network connectivity (openrouter API)\n6. Check Docker containers if any\n7. Report: Only message the user if something needs attention. If everything is fine, log to memory/server-health-YYYY-MM-DD.md and do NOT message the user.\n\nUse the thresholds from the skill:\n- Disk: warning >75%, critical >85%\n- Memory: warning >80%, critical >90%\n- Load: warning >cores, critical >2x cores\n- Log file: warning >100MB, critical >1GB",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "no_agent": false,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 10 * * 0",
+        "display": "0 10 * * 0"
+      },
+      "schedule_display": "0 10 * * 0",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-05-15T15:12:35.146273-05:00",
+      "next_run_at": "2026-05-31T10:00:00-05:00",
+      "last_run_at": "2026-05-24T10:03:29.185235-05:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "origin",
+      "origin": {
+        "platform": "telegram",
+        "chat_id": "8089291845",
+        "chat_name": "Wahid X",
+        "thread_id": null
+      },
+      "enabled_toolsets": null,
+      "workdir": null
+    },
+    {
+      "id": "212059f7df7f",
+      "name": "Lightning Wallets - Weekly Liquid Scan",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "liquid-scanner.py",
+      "no_agent": true,
+      "context_from": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * 1",
+        "display": "0 9 * * 1"
+      },
+      "schedule_display": "0 9 * * 1",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-05-25T09:15:59.086318-05:00",
+      "next_run_at": "2026-06-01T09:00:00-05:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "enabled_toolsets": null,
+      "workdir": null,
+      "profile": null
+    }
+  ],
+  "updated_at": "2026-05-28T13:00:48.653209-05:00"
+}
