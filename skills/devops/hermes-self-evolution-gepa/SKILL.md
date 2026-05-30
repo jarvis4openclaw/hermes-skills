@@ -4,7 +4,7 @@ description: >
   Run GEPA (Genetic Evolution of Prompt Artifacts) skill optimization cycles on Hermes skills.
   Use when asked to improve skills, run self-evolution, optimize prompts, or audit skill quality.
   The pipeline lives at ~/hermes-agent-self-evolution. DSPy 3.1.3 is installed in its .venv.
-version: 1.5.3
+version: 1.6.0
 metadata:
   hermes:
     tags: [self-evolution, GEPA, DSPy, skills, optimization]
@@ -18,11 +18,13 @@ metadata:
 
 ## Environment
 
-- **Repo:** `~/hermes-agent-self-evolution` (NousResearch/hermes-agent-self-evolution on GitHub)
+- **Repo:** `~/hermes-agent-self-evolution` (forked to jarvis4openclaw/hermes-agent-self-evolution on GitHub)
+- **Skills backup:** `jarvis4openclaw/hermes-skills` (evolved skills pushed here)
 - **Venv:** `/home/wahid/hermes-agent-self-evolution/.venv/bin/python`
 - **DSPy version:** 3.1.3 (confirmed installed)
-- **Skills source:** `~/.hermes/hermes-agent/` (NousResearch/hermes-agent)
-- **Remote:** `https://github.com/NousResearch/hermes-agent-self-evolution.git`
+- **Skills source:** `~/.hermes/hermes-agent/` (NousResearch/hermes-agent upstream)
+- **Remote:** `https://github.com/jarvis4openclaw/hermes-agent-self-evolution.git`
+- **Upstream:** `https://github.com/NousResearch/hermes-agent-self-evolution.git` (read-only)
 
 ## CLI Usage
 
@@ -88,11 +90,11 @@ Run ONLY if the Fast Path above did NOT trigger.
    - **Fallback — word-count-driven:** If no skills were modified since last cycle, pick by word count + trigger frequency. Highest delta potential = missing Pitfalls sections + vague descriptions.
 2. **Check API key** — if masked, use LLM-as-Judge fallback (Strategy A: direct parent execution)
 3. **Run optimization** — for each skill: read, score baseline, write evolved SKILL.md to live path
-4. **Sync to repo** — `cp` evolved files from `~/.hermes/skills/` to `~/.hermes/hermes-agent/skills/`. If the target directory doesn't exist in the repo, create it with `mkdir -p` first. If the file is new (didn't exist in the repo), it will appear as an untracked file — stage it with `git add` before generating patches.
+4. **Sync to repos** — `cp` evolved files from `~/.hermes/skills/` to `~/.hermes/hermes-agent/skills/`. If the target directory doesn't exist in the repo, create it with `mkdir -p` first. If the file is new (didn't exist in the repo), it will appear as an untracked file — stage it with `git add` before generating patches. Also sync to `~/hermes-skills/` for backup.
 5. **Generate patches** — `git diff` in hermes-agent repo
 6. **Write report + metrics** — in `~/hermes-agent-self-evolution/reports/`
-7. **Commit both repos** — skill changes in hermes-agent, patches+report in self-evolution
-8. **Attempt push** — try `git push` to self-evolution repo; if 403, log branch name in report
+7. **Commit all repos** — skill changes in hermes-agent, patches+report in self-evolution, skills backup in hermes-skills
+8. **Push to jarvis4openclaw** — `git push` to both jarvis4openclaw/hermes-agent-self-evolution and jarvis4openclaw/hermes-skills. If push succeeds, note it. If 403, you're likely on the wrong account — switch to jarvis4openclaw (`gh auth switch --user jarvis4openclaw`) and retry. Do NOT report push failure as a blocker — local commits are the source of truth.
 
 ## GEPA Scoring Dimensions (0–10 each)
 
@@ -175,27 +177,33 @@ toolsets: ["terminal", "file"]
 
 After subagents return (or time out), apply any missing evolved content directly, then sync and commit.
 
-## GitHub Auth (Push to NousResearch)
+## GitHub Auth
 
-⚠️ **Known blocker as of 2026-04-10:** All 3 available accounts lack push access:
-- `friday-openclaw[bot]` — token invalid (gh auth shows failed)
-- `jarvis4openclaw` — 403 on NousResearch org
-- `wahidsaleemi` — 403 on NousResearch org
-
-**Fix needed:** Grant push access to one of the above accounts. Until then, commit locally and report the branch name.
+Push operations use the `jarvis4openclaw` account which has full write access to both repos:
+- `jarvis4openclaw/hermes-agent-self-evolution` — GEPA reports, metrics, patches
+- `jarvis4openclaw/hermes-skills` — evolved skills backup
 
 ```bash
-# Switch accounts
+# Verify you're on the right account
+gh auth status
+
+# Switch if needed
 gh auth switch --user jarvis4openclaw
-gh auth token  # verify
 
-# Push once access is granted
+# Push self-evolution
 cd ~/hermes-agent-self-evolution
-GH_TOKEN=$(gh auth token) git push -u origin <branch>
+git push -u origin <branch>
 
-# Create PR
-gh pr create --title "feat: GEPA cycle N — skill optimization" \
-  --body "..." --base main
+# Push skills backup
+cd ~/hermes-skills
+git push -u origin main
+```
+
+**Upstream sync** (when pulling NousResearch updates):
+```bash
+cd ~/hermes-agent-self-evolution
+git fetch upstream
+git merge upstream/main
 ```
 
 ## API Key Pitfall in Cron
@@ -217,7 +225,10 @@ If masked: store a plaintext service key in `~/.hermes/evolution-creds.env` and 
 
 - **Reports:** `~/hermes-agent-self-evolution/reports/gepa_cycle_N_report.md`
 - **Metrics JSON:** `~/hermes-agent-self-evolution/reports/gepa_cycle_N_metrics.json`
-- **Datasets:** `~/hermes-agent-self-evolution/datasets/skills/<skill-name>/`
+- **Patches:** `~/hermes-agent-self-evolution/patches/<skill>/gepa-cycle-N.patch`
+- **Skills backup:** `~/hermes-skills/skills/` (pushed to jarvis4openclaw/hermes-skills)
+- **Remote (self-evolution):** `jarvis4openclaw/hermes-agent-self-evolution`
+- **Remote (skills):** `jarvis4openclaw/hermes-skills`
 
 ## Pitfalls
 
@@ -231,7 +242,7 @@ If masked: store a plaintext service key in `~/.hermes/evolution-creds.env` and 
    # Then sync to repo
    cp ~/.hermes/skills/<path>/SKILL.md ~/.hermes/hermes-agent/skills/<path>/SKILL.md
    ```
-5. **NousResearch org push access** — no currently valid account has push rights. Commit locally and surface to Boss with branch name.
+5. **Wrong GitHub account** — If `git push` returns 403, you're likely authenticated as `wahidsaleemi` or a bot account that lacks write access to the jarvis4openclaw repos. Run `gh auth status` and switch with `gh auth switch --user jarvis4openclaw`. jarvis4openclaw has full write access to both target repos.
 6. **Subagent timeout on large content** — Subagents tasked with reading + scoring + writing evolved SKILL.md for 2+ large skills may time out at 600s. If subagents time out, complete the work directly in the parent session. See "Fallback: LLM-as-Judge" section for Strategy A (preferred) vs Strategy B.
 7. **Patch generation ordering** — Patches must be generated AFTER syncing evolved content to the repo path. If patches are generated before syncing, they will be empty (0 lines). Always: write live → sync to repo → `git diff` → generate patch.
 8. **Stale branch in self-evolution repo** — The self-evolution repo may be checked out to a branch from a previous cycle (e.g. `gepa/phase1-skill-optimization-cycle-3`). Commits made while on the wrong branch will NOT be on the intended cycle-N branch. Always run `git checkout main && git checkout -b gepa/phase1-skill-optimization-cycle-N` BEFORE committing. If you already committed to the wrong branch, use `git cherry-pick` to move the commit to the correct branch.
@@ -267,12 +278,14 @@ When writing evolved skill content directly (without the CLI pipeline), the repo
 
 1. **Write evolved SKILL.md** directly to `~/.hermes/skills/<category>/<skill>/SKILL.md` (the live path)
 2. **Sync to repo path:** `cp ~/.hermes/skills/<path>/SKILL.md ~/.hermes/hermes-agent/skills/<path>/SKILL.md`. If the target directory doesn't exist in the repo, create it with `mkdir -p` first.
-3. **Generate patch files** from the hermes-agent repo. First check if the skill is gitignored: `git check-ignore -v skills/<path>/SKILL.md`. If not ignored AND tracked in HEAD: `git diff HEAD -- skills/<path>/SKILL.md > ~/hermes-agent-self-evolution/patches/<skill>/gepa-cycle-N.patch`. For new files (not in HEAD): stage with `git add skills/<path>/SKILL.md`, then `git diff --cached -- skills/<path>/SKILL.md > ~/hermes-agent-self-evolution/patches/<skill>/gepa-cycle-N.patch`. **Do NOT use `git diff HEAD` for new files** — even after staging, HEAD has no reference to compare against and the diff will be empty. `--cached` compares the staging area against HEAD, which correctly captures additions. For gitignored files: `diff -u /dev/null skills/<path>/SKILL.md | tail -n +3 > ~/hermes-agent-self-evolution/patches/<skill>/gepa-cycle-N.patch`. Gitignored files can't be committed to the hermes-agent repo — track them in the self-evolution repo only.
-4. **Create mkdir** for each `patches/<skill>/` dir before writing
-5. **Write report** to `~/hermes-agent-self-evolution/reports/gepa_cycle_N_report.md`
-6. **Write metrics** to `~/hermes-agent-self-evolution/reports/gepa_cycle_N_metrics.json`
-7. **Commit all** (patches + report + metrics) in the self-evolution repo
-8. **Commit skill changes** in the hermes-agent repo
+3. **Sync to skills backup:** `cp ~/.hermes/skills/<path>/SKILL.md ~/hermes-skills/skills/<path>/SKILL.md`
+4. **Generate patch files** from the hermes-agent repo. First check if the skill is gitignored: `git check-ignore -v skills/<path>/SKILL.md`. If not ignored AND tracked in HEAD: `git diff HEAD -- skills/<path>/SKILL.md > ~/hermes-agent-self-evolution/patches/<skill>/gepa-cycle-N.patch`. For new files (not in HEAD): stage with `git add skills/<path>/SKILL.md`, then `git diff --cached -- skills/<path>/SKILL.md > ~/hermes-agent-self-evolution/patches/<skill>/gepa-cycle-N.patch`. **Do NOT use `git diff HEAD` for new files** — even after staging, HEAD has no reference to compare against and the diff will be empty. `--cached` compares the staging area against HEAD, which correctly captures additions. For gitignored files: `diff -u /dev/null skills/<path>/SKILL.md | tail -n +3 > ~/hermes-agent-self-evolution/patches/<skill>/gepa-cycle-N.patch`. Gitignored files can't be committed to the hermes-agent repo — track them in the self-evolution repo only.
+5. **Create mkdir** for each `patches/<skill>/` dir before writing
+6. **Write report** to `~/hermes-agent-self-evolution/reports/gepa_cycle_N_report.md`
+7. **Write metrics** to `~/hermes-agent-self-evolution/reports/gepa_cycle_N_metrics.json`
+8. **Commit all** (patches + report + metrics) in the self-evolution repo
+9. **Commit skill changes** in the hermes-agent repo
+10. **Commit skills backup** in `~/hermes-skills` and push to `jarvis4openclaw/hermes-skills`
 
 The self-evolution repo does NOT track skill files directly — only diffs (patches) and reports. The live skill changes happen in `~/.hermes/skills/` which is the path the running agent actually reads from.
-9. **Skill exists in live path but not in repo path** — Some skills in `~/.hermes/skills/` may not have a corresponding file in `~/.hermes/hermes-agent/skills/`. Before running `cp` to sync, check if the repo target path exists. If the parent directory doesn't exist, create it with `mkdir -p` first. If the file doesn't exist at all in the repo, it will show as a new file in `git diff` — stage it with `git add` before committing. Check with: `test -f ~/.hermes/hermes-agent/skills/<path>/SKILL.md || echo "NEW_FILE"`.
+Evolved skills are backed up to `jarvis4openclaw/hermes-skills` for redundancy.
