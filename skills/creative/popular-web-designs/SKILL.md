@@ -1,21 +1,29 @@
 ---
 name: popular-web-designs
 description: 54 real design systems (Stripe, Linear, Vercel) as HTML/CSS.
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent + Teknium (design systems sourced from VoltAgent/awesome-design-md)
 license: MIT
 tags: [design, css, html, ui, web-development, design-systems, templates]
 platforms: [linux, macos, windows]
-triggers:
-  - build a page that looks like
-  - make it look like stripe
-  - design like linear
-  - vercel style
-  - create a UI
-  - web design
-  - landing page
-  - dashboard design
-  - website styled like
+metadata:
+  hermes:
+    tags: [design, css, html, ui, web-development, design-systems, templates]
+    related_skills: [claude-design, design-md, sketch, architecture-diagram]
+    trigger_conditions:
+      - "build a page that looks like"
+      - "make it look like stripe"
+      - "design like linear"
+      - "vercel style"
+      - "create a UI"
+      - "web design"
+      - "landing page"
+      - "dashboard design"
+      - "website styled like"
+      - "design system template"
+      - "clone the look of"
+      - "match the style of"
+      - "design tokens for"
 ---
 
 # Popular Web Designs
@@ -23,6 +31,27 @@ triggers:
 54 real-world design systems ready for use when generating HTML/CSS. Each template captures a
 site's complete visual language: color palette, typography hierarchy, component styles, spacing
 system, shadows, responsive behavior, and practical agent prompts with exact CSS values.
+
+## When to Use
+
+- User asks to build a page that looks like Stripe, Linear, Vercel, or any of the 54 cataloged sites
+- User wants a design system's visual language applied to a new page or prototype
+- User needs a starting point for a landing page, dashboard, or marketing site with a specific aesthetic
+- User says "make it look professional" and you need a concrete visual reference
+- User is comparing design directions and needs tokens for different styles
+- User wants to prototype a UI that matches a known brand's design language
+- User asks for CSS custom properties, font stacks, or shadow values from a specific design system
+- User needs a quick theme for a throwaway page but wants it to look polished
+
+## Not For
+
+- **The design *process* (scoping a brief, producing variants, verifying artifacts)** → use `claude-design` instead
+- **Formal DESIGN.md token spec files (not rendered HTML)** → use `design-md` instead
+- **Throwaway HTML mockups with variant comparison** → use `sketch` instead
+- **Architecture diagrams or infrastructure visuals** → use `architecture-diagram` instead
+- **Hand-drawn style wireframes or flowcharts** → use `excalidraw` instead
+- **Interactive p5.js generative art or shaders** → use `p5js` instead
+- **Pixel-art or retro game aesthetic** → use `pixel-art` instead
 
 ## Related design skills
 
@@ -212,3 +241,29 @@ Match the design to the content:
 - **Premium / luxury:** Apple, BMW, Stripe, Superhuman, Revolut
 - **Data-dense / dashboards:** Sentry, Kraken, Cohere, ClickHouse
 - **Monospace / terminal aesthetic:** Ollama, OpenCode, x.ai, VoltAgent
+
+## Pitfalls
+
+1. **Forgetting to load the template file** — The SKILL.md only contains the catalog; the actual design tokens are in `templates/<site>.md`. Always call `skill_view(name="popular-web-designs", file_path="templates/<site>.md")` after picking a design. Without it, you're guessing at colors and spacing.
+
+2. **Pasting Google Fonts `<link>` inside `<style>` tags** — The `<link>` tag must go in `<head>`, not inside a `<style>` block. Browsers silently ignore `<link>` inside `<style>`, so the font won't load and the page falls back to system fonts with no error message. Use `browser_vision` after rendering to catch this.
+
+3. **Using proprietary font names in `font-family` without the CDN `<link>`** — Templates map proprietary fonts (e.g., "Geist Sans", "sohne-var") to CDN substitutes. If you use the proprietary name without loading the substitute font, the browser falls back to a generic sans-serif. Always include the Google Fonts `<link>` from the template's Hermes notes.
+
+4. **Mixing design tokens from two different templates** — Each template is a self-contained system. Combining Stripe's purple gradient with Linear's spacing system produces visual incoherence. Pick one template and commit to it for the entire page.
+
+5. **Skipping `browser_vision` verification** — CSS custom properties, font loading, and layout all fail silently. A page that looks correct in source code may be broken in the browser. Always navigate to the file and call `browser_vision(question="Does this page render correctly? Any layout issues or unstyled elements?")`.
+
+6. **Using `skill_view` to load a template that doesn't exist** — The catalog lists 54 templates, but confirm the exact filename with `search_files(pattern="<site>.md", target="files", path="~/.hermes/skills/creative/popular-web-designs/templates")` before loading. Template filenames may differ from catalog names (e.g., `linear.app.md` vs `linear.md`).
+
+7. **Overwriting the template tokens with your own guesses** — The template provides exact hex colors, font weights, spacing values, and shadow specs. Substituting "close enough" values defeats the purpose. Use the template values verbatim.
+
+8. **Applying a dark-mode template to a light-mode page without adjusting** — Templates like Linear and ElevenLabs assume dark backgrounds. If the user wants a light page, pick a light-mode template (Vercel, Notion, Stripe) instead of inverting a dark one.
+
+9. **Treating a design template as a full component library** — Templates provide visual language (colors, type, spacing, shadows), not pre-built React/Vue components. You still need to write the HTML structure; the template tells you how it should look.
+
+10. **Loading `skill_view` for every page in a multi-page site** — Load the template once and store the tokens. Re-loading for every page wastes tool calls and slows down generation.
+
+11. **Ignoring the template's responsive breakpoint guidance** — Many templates specify how spacing and typography change at different viewport sizes. Skipping this produces desktop-only designs that break on mobile.
+
+12. **Pairing this skill with `generative-widgets` but forgetting the tunnel step** — If you serve via cloudflared tunnel, the tunnel URL must be accessible. After `write_file` and tunnel start, verify the live URL with `browser_navigate(url="<tunnel-url>")` — not just the local `file://` path.

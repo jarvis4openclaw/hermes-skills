@@ -1,7 +1,7 @@
 ---
 name: sketch
 description: "Throwaway HTML mockups: 2-3 design variants to compare."
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent (adapted from gsd-build/get-shit-done)
 license: MIT
 platforms: [linux, macos, windows]
@@ -9,20 +9,46 @@ metadata:
   hermes:
     tags: [sketch, mockup, design, ui, prototype, html, variants, exploration, wireframe, comparison]
     related_skills: [spike, claude-design, popular-web-designs, excalidraw]
+    trigger_conditions:
+      - "sketch this screen"
+      - "show me what X could look like"
+      - "compare layout A vs B"
+      - "give me 2-3 takes on this UI"
+      - "let me see some variants"
+      - "mockup this before I build"
+      - "throwaway HTML mockup"
+      - "design exploration"
+      - "UI variant comparison"
+      - "wireframe this"
+      - "prototype comparison"
+      - "design direction options"
+      - "quick mockup to compare"
 ---
 
 # Sketch
 
 Use this skill when the user wants to **see a design direction before committing** to one — exploring a UI/UX idea as disposable HTML mockups. The point is to generate 2-3 interactive variants so the user can compare visual directions side-by-side, not to produce shippable code.
 
-Load this when the user says things like "sketch this screen", "show me what X could look like", "compare layout A vs B", "give me 2-3 takes on this UI", "let me see some variants", "mockup this before I build".
+## When to Use
 
-## When NOT to use this
+- User says "sketch this screen" or "mockup this before I build"
+- User wants to compare 2-3 design directions side-by-side
+- User is exploring a UI/UX idea and wants to see it, not describe it
+- User says "show me what X could look like" with no commitment to build
+- User needs to align stakeholders on a visual direction before engineering begins
+- User wants a quick interactive prototype, not a polished artifact
+- User says "I have a vague idea, can you visualize it?"
+- User needs to compare layout densities (compact vs airy vs ultra-dense)
 
-- User wants a production component — use `claude-design` or build it properly
-- User wants a polished one-off HTML artifact (landing page, deck) — `claude-design`
-- User wants a diagram — `excalidraw`, `architecture-diagram`
-- The design is already locked — just build it
+## Not For
+
+- **Production-ready component or page** → use `claude-design` instead
+- **Polished one-off HTML artifact (landing page, deck, portfolio)** → use `claude-design` instead
+- **Architecture diagram or infrastructure flowchart** → use `excalidraw` instead
+- **Design system token spec or formal DESIGN.md** → use `design-md` instead
+- **Throwaway code spike (not visual)** → use `spike` instead
+- **ASCII art or hand-drawn style diagram** → use `ascii-art` instead
+- **Pixel-art or retro game aesthetic** → use `pixel-art` instead
 
 ## If the user has the full GSD system installed
 
@@ -212,6 +238,32 @@ browser_vision(question="How does this look? Any obvious layout issues?")
 ```
 
 Repeat for each variant, then present the comparison table.
+
+## Pitfalls
+
+1. **Building only one variant** — A single mockup is not a sketch. The user asked for comparison. One variant is just a prototype. Always produce 2–3.
+
+2. **Variants that differ only in color** — Two variants with the same layout but different accent colors are indistinguishable to a non-designer. Force structural or density differences.
+
+3. **Skipping visual verification** — Writing HTML and hoping it renders correctly is guessing. Use `browser_navigate` + `browser_vision` on every variant. A font that silently fails looks "fine" in source code but renders as a generic fallback.
+
+4. **Using `browser_navigate` without `file://$(pwd)/`** — The `file://` protocol needs an absolute path. `browser_navigate(url="sketches/001/index.html")` fails because it's interpreted as a relative URL, not a local file. Use `file://$(pwd)/sketches/...` or resolve the absolute path first.
+
+5. **Making variants too polished** — A sketch should be disposable. If you spent 20 minutes on one variant's animation easing, you've lost the point. 5–10 minutes per variant maximum.
+
+6. **Forgetting the README** — Each variant's `README.md` documents the design stance and trade-offs. Without it, the user sees three HTML files with no rationale for why they differ.
+
+7. **Asking all intake questions at once** — The three intake questions should be asked one at a time. Dumping them all in one message overwhelms the user and often gets partial answers.
+
+8. **Skipping the head-to-head comparison** — Don't just link the three files. Present a comparison table with your opinionated recommendation. The user is paying you for judgment, not just links.
+
+9. **Not checking `browser_vision` annotations match** — When `annotate=true` is used, the returned `[N]` labels map to `@eN` refs. If the page re-renders between snapshot and vision, the refs may shift. Always re-snapshot after a vision call if you plan to click.
+
+10. **Using external CSS/JS files** — Each variant must be self-contained. A single HTML file with inline `<style>` ensures the user can open it without a server or build step.
+
+11. **Preserving sketches as permanent assets** — Sketches are throwaway by definition. If a user wants to keep one, promote it to real project code or use `claude-design` for a proper artifact. Don't maintain a `sketches/` directory long-term.
+
+12. **Ignoring the GSD system** — If `gsd-sketch` is installed, this skill is the lightweight fallback. The full GSD system provides persistent MANIFESTs, consistency audits, and theme integration. Don't duplicate its features.
 
 ## Attribution
 

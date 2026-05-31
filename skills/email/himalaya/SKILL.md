@@ -1,16 +1,31 @@
 ---
 name: himalaya
 description: "Himalaya CLI: IMAP/SMTP email from terminal."
-version: 1.1.0
+version: 1.2.0
 author: community
 license: MIT
 platforms: [linux, macos, windows]
+prerequisites:
+  commands: [himalaya]
 metadata:
   hermes:
     tags: [Email, IMAP, SMTP, CLI, Communication]
     homepage: https://github.com/pimalaya/himalaya
-prerequisites:
-  commands: [himalaya]
+    related_skills: [himalaya]
+    trigger_conditions:
+      - "himalaya"
+      - "email from terminal"
+      - "imap cli"
+      - "send email from command line"
+      - "check email via terminal"
+      - "himalaya account configure"
+      - "himalaya folder list"
+      - "himalaya envelope"
+      - "himalaya template"
+      - "smtp cli email"
+      - "manage emails via terminal"
+      - "himalaya config"
+      - "email client command line"
 ---
 
 # Himalaya Email CLI
@@ -21,6 +36,27 @@ This skill is separate from the Hermes Email gateway adapter. The gateway
 adapter lets people email the agent and uses Hermes' built-in IMAP/SMTP
 adapter; this skill lets the agent operate a mailbox from terminal tools and
 requires the external `himalaya` CLI.
+
+## When to Use
+
+- User says "check my email" or "list my emails" and `himalaya` is installed
+- User asks to send an email from the terminal (non-interactive, scripted)
+- User needs to move, copy, or delete emails via CLI
+- User wants to configure a new email account in Himalaya
+- User says "himalaya" explicitly
+- User needs to export a raw MIME message from their mailbox
+- User wants to manage email flags (seen, flagged) programmatically
+- User asks for a terminal-based email workflow (not GUI/web)
+
+## Not For
+
+- **Sending email via the Hermes Email gateway adapter** → use Hermes' built-in email adapter (not this skill)
+- **GUI or web-based email management** → this skill is CLI-only
+- **Complex MML composition with attachments** → use a proper email client; MML is error-prone
+- **Bulk email marketing or mass sending** → use a transactional email service
+- **Email filtering or server-side rules** → use Sieve or your provider's web UI
+- **Encrypted email (PGP/GPG)** → Himalaya supports some backends but this skill doesn't cover key management
+- **Microsoft Exchange with modern auth** → use a client that supports OAuth2 natively
 
 ## References
 
@@ -296,9 +332,28 @@ Full trace with backtrace:
 RUST_LOG=trace RUST_BACKTRACE=1 himalaya envelope list
 ```
 
-## Tips
+## Pitfalls
 
-- Use `himalaya --help` or `himalaya <command> --help` for detailed usage.
-- Message IDs are relative to the current folder; re-list after folder changes.
-- For composing rich emails with attachments, use MML syntax (see `references/message-composition.md`).
-- Store passwords securely using `pass`, system keyring, or a command that outputs the password.
+1. **Using the singular `folder.alias` syntax** — As documented above, pre-v1.2.0 used `[accounts.NAME.folder.alias]`. v1.2.0+ requires `folder.aliases.X` (plural, dotted). The singular form parses but is silently ignored. On Gmail, this causes `himalaya message send` to exit non-zero *after* SMTP delivery — every retry sends another copy. Always use plural `folder.aliases`.
+
+2. **Opening `$EDITOR` without `pty=true`** — `himalaya message write` without piped input opens the system editor. Without `pty=true` in the terminal tool, the editor hangs waiting for input that never comes. Use `pty=true` or (better) pipe the message via stdin.
+
+3. **Retrying on `folder not found` error** — This usually means the folder alias mapping is wrong (see pitfall #1) or the folder name has a space that wasn't quoted. Check the alias syntax before retrying.
+
+4. **Message IDs are folder-relative** — `himalaya message read 42` reads ID 42 in the *current* default folder (usually INBOX). After moving a message, its ID in the destination folder may differ. Always re-list after folder changes.
+
+5. **Forgetting `--output json` for programmatic parsing** — Default output is human-readable plain text. Parsing it with string operations is fragile. Always add `--output json` when the result will be used in downstream logic.
+
+6. **Using `himalaya message write` interactively from Hermes** — This requires knowing the user's `$EDITOR` (vim, nano, emacs) and sending the correct key sequence to save and quit. It's error-prone. The piped stdin approach (`cat << EOF | himalaya template send`) is more reliable.
+
+7. **Storing plaintext passwords in config.toml** — `backend.auth.password = "mypassword"` works but is a security risk. Use `backend.auth.cmd = "pass show email/imap"` or a keyring command instead.
+
+8. **Not checking for `himalaya --version` before running** — Syntax changed between versions (e.g., `folder.alias` → `folder.aliases`). Verify the installed version with `himalaya --version` before applying config from this skill or references.
+
+9. **Assuming Gmail folder names are canonical** — Gmail uses `[Gmail]/Sent Mail`, `[Gmail]/Drafts`, etc. Without aliases, himalaya looks for `Sent` and fails. See `references/configuration.md` for the exact Gmail mapping.
+
+10. **Sending a reply without `In-Reply-To` header** — A reply without this header is treated as a new thread by most email clients. When piping a reply, include the original `Message-Id` in the `In-Reply-To:` header. Use `himalaya message read --raw <id>` to find it.
+
+11. **Rate-limiting yourself with rapid `envelope list` calls** — IMAP servers may throttle connections. If listing large folders repeatedly, add `--page-size 50` and paginate instead of requesting thousands of envelopes at once.
+
+12. **Using the default account when `--account` is needed** — If the user has multiple accounts configured, commands run against the `default = true` account unless `--account <name>` is specified. Always check `himalaya account list` first when working with a multi-account setup.

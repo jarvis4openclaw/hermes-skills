@@ -1,12 +1,26 @@
 ---
 name: dogfood
 description: "Exploratory QA of web apps: find bugs, evidence, reports."
-version: 1.0.0
+version: 1.1.0
 platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [qa, testing, browser, web, dogfood]
-    related_skills: []
+    related_skills: [plan, spike, claude-design]
+    trigger_conditions:
+      - "test this web app"
+      - "dogfood"
+      - "qa testing"
+      - "find bugs in"
+      - "check this site for issues"
+      - "exploratory testing"
+      - "web app QA"
+      - "screenshot and report bugs"
+      - "audit this website"
+      - "browser testing"
+      - "check for broken links"
+      - "verify this page"
+      - "systematic web testing"
 ---
 
 # Dogfood: Systematic Web Application QA Testing
@@ -14,6 +28,27 @@ metadata:
 ## Overview
 
 This skill guides you through systematic exploratory QA testing of web applications using the browser toolset. You will navigate the application, interact with elements, capture evidence of issues, and produce a structured bug report.
+
+## When to Use
+
+- User says "test this web app" or "find bugs in this site"
+- User wants a systematic audit of a website or web app before launch
+- User asks for "QA testing" or "exploratory testing"
+- User wants screenshots and a report of issues found
+- User says "check this for broken links" or "verify this page"
+- User needs a pre-release sanity check on a new feature or page
+- User says "dogfood" explicitly
+- User wants to compare expected vs actual behavior across a site
+
+## Not For
+
+- **Unit testing or API endpoint testing** → use a testing framework (pytest, jest) instead
+- **Load or performance testing** → use dedicated tools (k6, artillery, lighthouse CI)
+- **Security penetration testing** → use specialized security tools or skills
+- **Accessibility audit (WCAG compliance scoring)** → use axe-core, lighthouse accessibility, or a dedicated a11y tool
+- **Testing mobile-native apps** → this skill is browser-based only
+- **Automated regression test suite creation** → use Playwright, Cypress, or Selenium
+- **Design critique or visual design review** → use `claude-design` or `sketch` instead
 
 ## Prerequisites
 
@@ -150,13 +185,28 @@ Save the report to `{output_dir}/report.md`.
 | `browser_vision` | Screenshot + AI analysis; use `annotate=true` for element labels |
 | `browser_console` | Get JS console output and errors |
 
-## Tips
+## Pitfalls
 
-- **Always check `browser_console()` after navigating and after significant interactions.** Silent JS errors are among the most valuable findings.
-- **Use `annotate=true` with `browser_vision`** when you need to reason about interactive element positions or when the snapshot refs are unclear.
-- **Test with both valid and invalid inputs** — form validation bugs are common.
-- **Scroll through long pages** — content below the fold may have rendering issues.
-- **Test navigation flows** — click through multi-step processes end-to-end.
-- **Check responsive behavior** by noting any layout issues visible in screenshots.
-- **Don't forget edge cases**: empty states, very long text, special characters, rapid clicking.
-- When reporting screenshots to the user, include `MEDIA:<screenshot_path>` so they can see the evidence inline.
+1. **Testing without a defined scope** — "Full site" sounds comprehensive but leads to shallow coverage. Define 3–5 critical user flows and test those deeply rather than clicking every link shallowly.
+
+2. **Skipping `browser_console` after navigation** — Silent JS errors are among the highest-value findings. They don't block the UI but indicate broken functionality. Always run `browser_console(clear=true)` after every `browser_navigate` and after form submissions.
+
+3. **Using `browser_click` without a snapshot first** — `browser_click` requires a ref like `@e5`. If the page changed since the last snapshot, the ref may point to a different element or fail. Always call `browser_snapshot` immediately before `browser_click`.
+
+4. **Not verifying screenshots were saved** — `browser_vision` returns a `screenshot_path`, but it may fail if the filesystem is full or the path is invalid. Confirm the file exists with `terminal(command="ls -la <screenshot_path>")` before referencing it in the report.
+
+5. **Reporting the same bug in multiple places as separate issues** — A broken navigation link that appears on every page is one issue, not N issues. De-duplicate in Phase 4. Check the URL and root cause before filing.
+
+6. **Testing only the happy path** — Empty form submissions, invalid emails, very long text, special characters, and rapid clicks catch real bugs. Don't just test "valid input works" — test "invalid input is handled gracefully."
+
+7. **Forgetting to scroll** — Content below the fold often has rendering issues (overlapping elements, broken images, layout shifts). Use `browser_scroll(direction="down")` repeatedly until you reach the bottom of the page.
+
+8. **Misclassifying severity** — A misspelled word is Low. A broken checkout button is Critical. A console error on a marketing page is Medium. Use the definitions in `references/issue-taxonomy.md` consistently.
+
+9. **Writing a report without screenshots** — "The button is broken" is weak evidence. "The button is broken — see `MEDIA:<screenshot_path>`" is strong evidence. Every issue should have a screenshot.
+
+10. **Not checking `browser_vision` annotations against snapshot refs** — When `annotate=true`, `browser_vision` returns `[N]` labels that map to `@eN`. But the vision tool may label elements differently than the snapshot. If you plan to click after a vision call, re-run `browser_snapshot` to get the current refs.
+
+11. **Stopping after finding one bug** — The goal is systematic coverage, not "find one issue and stop." Continue through the full sitemap even after finding bugs. Multiple issues in the same area often share a root cause.
+
+12. **Running on production sites with write operations** — This skill is for testing, not for interacting with live production data. Don't submit real forms, create real accounts, or make real purchases during a dogfood session. Use staging environments or test data.

@@ -1,7 +1,7 @@
 ---
 name: spotify
 description: "Spotify: play, search, queue, manage playlists and devices."
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
@@ -10,16 +10,49 @@ prerequisites:
 metadata:
   hermes:
     tags: [spotify, music, playback, playlists, media]
-    related_skills: [gif-search]
+    related_skills: [gif-search, songsee, heartmula]
+    trigger_conditions:
+      - "play music"
+      - "play X on spotify"
+      - "pause"
+      - "skip"
+      - "queue up"
+      - "what's playing"
+      - "search for X on spotify"
+      - "add to my playlist"
+      - "create a playlist"
+      - "save this song"
+      - "transfer playback"
+      - "volume"
+      - "spotify"
 ---
 
 # Spotify
 
 Control the user's Spotify account via the Hermes Spotify toolset (7 tools). Setup guide: https://hermes-agent.nousresearch.com/docs/user-guide/features/spotify
 
-## When to use this skill
+## When to Use
 
-The user says something like "play X", "pause", "skip", "queue up X", "what's playing", "search for X", "add to my X playlist", "make a playlist", "save this to my library", etc.
+- User says "play X", "pause", "skip", "next", "previous"
+- User says "queue up X" or "add to queue"
+- User asks "what's playing" or "what am I listening to"
+- User wants to search for and play a track, album, artist, or playlist
+- User says "add to my X playlist" or "create a playlist"
+- User wants to save/unsave a track or album to their library
+- User says "transfer playback to my <device>"
+- User wants to set volume, enable shuffle, or toggle repeat
+- User asks for recently played tracks
+- User says "what devices are available"
+
+## Not For
+
+- **Searching for or playing local audio files** → use a local media player or `songsee` for analysis
+- **Music generation or AI audio creation** → use `heartmula` or `audiocraft` instead
+- **Audio feature analysis (spectrograms, MFCC, chroma)** → use `songsee` instead
+- **Managing Spotify account settings, billing, or profile** → use the Spotify web UI or mobile app
+- **Podcast/show management** → Spotify supports some podcast ops but this skill focuses on music
+- **Social features (following friends, viewing friend activity)** → use the Spotify app
+- **Playing music on unsupported platforms** → this skill requires the Spotify toolset; check `hermes tools` for availability
 
 ## The 7 tools
 
@@ -102,17 +135,31 @@ spotify_devices({"action": "list"})
 spotify_devices({"action": "transfer", "device_id": "<id>", "play": true})
 ```
 
-## Critical failure modes
+## Pitfalls
 
-**`403 Forbidden — No active device found`** on any playback action means Spotify isn't running anywhere. Tell the user: "Open Spotify on your phone/desktop/web player first, start any track for a second, then retry." Don't retry the tool call blindly — it will fail the same way. You can call `spotify_devices list` to confirm; an empty list means no active device.
+1. **Calling `get_state` before every playback action** — Spotify accepts play/pause/skip without preflight. Only call `get_currently_playing` when the user asked "what's playing" or you need to reason about the current track. Extra calls waste time and API quota.
 
-**`403 Forbidden — Premium required`** means the user is on Free and tried to mutate playback. Don't retry; tell them this action needs Premium. Reads still work (search, playlists, library, get_state).
+2. **Retrying `403 No active device`** — This means Spotify isn't open on any device. Blindly retrying the same call produces the same error. Tell the user: "Open Spotify on your phone/desktop/web player first, start any track for a second, then retry." Call `spotify_devices list` to confirm the device list is empty.
 
-**`204 No Content` on `get_currently_playing`** is NOT an error — it means nothing is playing. The tool returns `is_playing: false`. Just report that to the user.
+3. **Describing search results when the user said "play X"** — If the user said "play Kind of Blue", search with `limit: 1`, grab the top URI, and play it. They'll hear if it's wrong. Listing every result adds friction and delay.
 
-**`429 Too Many Requests`** = rate limit. Wait and retry once. If it keeps happening, you're looping — stop.
+4. **Retrying `403 Premium required`** — This is a permanent condition for Free users on playback-mutating actions. Don't retry; inform the user. Read operations (search, playlists, library, get_state) still work on Free.
 
-**`401 Unauthorized` after a retry** — refresh token revoked. Tell the user to run `hermes auth spotify` again.
+5. **Treating `204 No Content` on `get_currently_playing` as an error** — It means nothing is currently playing. The response includes `is_playing: false`. Report that to the user without retrying or escalating.
+
+6. **Searching `spotify_search` to find a user playlist by name** — `spotify_search` queries the public Spotify catalog. User-created playlists come from `spotify_playlists list`. If you search for "My Workout Mix" via `spotify_search`, you won't find it.
+
+7. **Mixing `kind: "tracks"` with album URIs in `spotify_library`** — The tool normalizes IDs internally, but the API endpoint differs. Pass track URIs for `kind: "tracks"` and album URIs for `kind: "albums"`.
+
+8. **Looping on `429 Too Many Requests`** — Rate limits mean you're calling too fast. Wait a few seconds and retry once. If it happens again, you're in a loop — stop and inform the user.
+
+9. **Ignoring `401 Unauthorized` after retry** — This means the refresh token was revoked (user changed password, revoked app access, etc.). Tell the user to run `hermes auth spotify` again. No amount of retrying fixes this.
+
+10. **Forgetting the `play: true` flag on device transfer** — `spotify_devices({"action": "transfer", "device_id": "..."})` without `play: true` transfers but doesn't start playback. The user will see the device active but nothing playing.
+
+11. **Using bare IDs instead of full URIs** — While the tools accept bare IDs, full URIs (`spotify:track:...`) are unambiguous. Pass the `uri` field directly from search results to avoid entity-type mismatches.
+
+12. **Creating duplicate playlists** — `spotify_playlists({"action": "create", "name": "X"})` always creates a new playlist. If the user said "add to my Focus playlist", first call `spotify_playlists list` to find the existing ID, then `add_items`.
 
 ## URI and ID formats
 
@@ -125,11 +172,3 @@ Spotify uses three interchangeable ID formats. The tools accept all three and no
 When in doubt, use full URIs. Search results return URIs in the `uri` field — pass those directly.
 
 Entity types: `track`, `album`, `artist`, `playlist`, `show`, `episode`. Use the right type for the action — `spotify_playback.play` with a `context_uri` expects album/playlist/artist; `uris` expects an array of track URIs.
-
-## What NOT to do
-
-- **Don't call `get_state` before every action.** Spotify accepts play/pause/skip without preflight. Only inspect state when the user asked "what's playing" or you need to reason about device/track.
-- **Don't describe search results unless asked.** If the user said "play X", search, grab the top URI, play it. They'll hear it's wrong if it's wrong.
-- **Don't retry on `403 Premium required` or `403 No active device`.** Those are permanent until user action.
-- **Don't use `spotify_search` to find a playlist by name** — that searches the public Spotify catalog. User playlists come from `spotify_playlists list`.
-- **Don't mix `kind: "tracks"` with album URIs** in `spotify_library` (or vice versa). The tool normalizes IDs but the API endpoint differs.
