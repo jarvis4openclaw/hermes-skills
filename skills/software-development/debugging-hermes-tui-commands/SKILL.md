@@ -1,7 +1,7 @@
 ---
 name: debugging-hermes-tui-commands
 description: "Debug Hermes TUI slash commands: Python, gateway, Ink UI."
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
@@ -9,6 +9,18 @@ metadata:
   hermes:
     tags: [debugging, hermes-agent, tui, slash-commands, typescript, python]
     related_skills: [python-debugpy, node-inspect-debugger, systematic-debugging]
+    trigger_conditions:
+      - "slash command not working"
+      - "tui command autocomplete"
+      - "command missing from tui"
+      - "debug hermes command"
+      - "slash command broken"
+      - "tui slash command"
+      - "command registry"
+      - "hermes cli command"
+      - "tui gateway command"
+      - "ink command handler"
+      - "command not in autocomplete"
 ---
 
 # Debugging Hermes TUI Slash Commands
@@ -26,6 +38,16 @@ Use this skill when you encounter issues with slash commands in the Hermes TUI, 
 - Command autocomplete isn't working for specific commands
 - Command behavior is inconsistent between CLI and TUI
 - A command persists config but doesn't apply live in the TUI
+- Adding a new slash command to Hermes
+- Fixing command registration across Python and TypeScript
+
+## Not For
+
+- **General Python debugging** → use `python-debugpy` instead
+- **General Node.js/TypeScript debugging** → use `node-inspect-debugger` instead
+- **Systematic root cause analysis** → use `systematic-debugging` instead
+- **Debugging non-slash-command Hermes issues** → use specific skill for that component
+- **Gateway/WebSocket issues not related to commands** → use `mission-control-openclaw-websocket-401-troubleshooting` instead
 
 ## Architecture Overview
 
@@ -121,12 +143,18 @@ When surface-level inspection doesn't reveal the bug:
 
 ## Pitfalls
 
-- Don't forget to set the appropriate category for the command in `CommandDef` (e.g., "Session", "Configuration", "Tools & Skills", "Info", "Exit")
-- Make sure any aliases are properly registered in the `aliases` tuple — no other file changes are needed, everything downstream (Telegram menu, Slack mapping, autocomplete, help) derives from it
-- For commands with subcommands, ensure the `subcommands` tuple in `CommandDef` matches what's in the TUI code
-- `cli_only=True` commands won't work in gateway/messaging platforms — unless you add a `gateway_config_gate` and the gate is truthy
-- After adding live UI state, search every consumer of the old prop/helper and thread the new state through all render paths, not just the active streaming path. TUI detail rendering has at least two important paths: live `StreamingAssistant`/`ToolTrail` and transcript/pending `MessageLine` rows. A `/clean` pass should explicitly check both.
-- Rebuild the TUI (`npm --prefix ui-tui run build`) before testing — tsx watch mode may lag on first launch
+1. **Don't forget to set the appropriate category** for the command in `CommandDef` (e.g., "Session", "Configuration", "Tools & Skills", "Info", "Exit")
+2. **Make sure any aliases are properly registered** in the `aliases` tuple — no other file changes are needed, everything downstream (Telegram menu, Slack mapping, autocomplete, help) derives from it
+3. **For commands with subcommands, ensure the `subcommands` tuple** in `CommandDef` matches what's in the TUI code
+4. **`cli_only=True` commands won't work in gateway/messaging platforms** — unless you add a `gateway_config_gate` and the gate is truthy
+5. **After adding live UI state, search every consumer** of the old prop/helper and thread the new state through all render paths, not just the active streaming path. TUI detail rendering has at least two important paths: live `StreamingAssistant`/`ToolTrail` and transcript/pending `MessageLine` rows. A `/clean` pass should explicitly check both.
+6. **Rebuild the TUI** (`npm --prefix ui-tui run build`) before testing — tsx watch mode may lag on first launch
+7. **Missing `CommandDef` in Python but present in TUI** — autocomplete ships from Python, so commands without a Python entry won't appear in TUI autocomplete even if they have a TUI handler
+8. **`GATEWAY_KNOWN_COMMANDS` derived from `COMMAND_REGISTRY`** — if you add a command to Python but it's not in `GATEWAY_KNOWN_COMMANDS`, check the derivation logic in the gateway
+9. **Subcommands tuple vs actual TUI handler mismatch** — the `subcommands` tuple drives autocomplete; the actual handler logic is separate. Both must be in sync.
+10. **Config gate truthiness** — `gateway_config_gate="display.foo"` means the config value must be truthy (not just set). `false`, `0`, `""` all block the command.
+11. **Hardcoded paths in verification steps** — the verification step references `/home/bb/hermes-agent` which is a dev machine path. Use the actual repo root (`~/.hermes/hermes-agent` or `$HERMES_REPO_ROOT`) instead.
+12. **Forgetting to rebuild after changes** — TypeScript changes to `ui-tui/src/app/slash/` require `npm --prefix ui-tui run build` to take effect in the running TUI.
 
 ## Verification
 
@@ -134,7 +162,7 @@ After fixing:
 
 1. Rebuild the TUI:
    ```bash
-   cd /home/bb/hermes-agent && npm --prefix ui-tui run build
+   cd ~/.hermes/hermes-agent && npm --prefix ui-tui run build
    ```
 
 2. Run the TUI and test the command:

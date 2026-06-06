@@ -4,7 +4,7 @@ description: >
   Manage Linear issues, projects, teams, and documents via the GraphQL API.
   Create, update, search, and filter issues. Manage workflow states, priorities,
   labels, and project membership. Use for all Linear project management operations.
-version: 1.1.0
+version: 1.2.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
@@ -27,11 +27,33 @@ metadata:
       - "linear workflow"
       - "linear document"
       - "linear RFC"
+      - "linear backlog"
 ---
 
 # Linear — Issue & Project Management
 
 Manage Linear issues, projects, and teams directly via the GraphQL API using `curl`. No MCP server, no OAuth flow, no extra dependencies.
+
+## When to Use
+
+- Creating, updating, or searching Linear issues
+- Managing Linear project membership and workflow states
+- Fetching and updating Linear documents (RFCs, specs, notes)
+- Listing teams, members, labels, or workflow states
+- Querying assigned issues ("my issues")
+- Bulk filtering issues by state, priority, assignee, or team
+- Any Linear GraphQL API operation that needs programmatic access
+- Adding comments, labels, due dates, or priorities to issues
+
+## Not For
+
+- **GitHub issues and PRs** → use `github-issues` or `github-pr-workflow` instead
+- **General project planning** → use `writing-plans` instead
+- **Task management within Hermes** → use the Kanban system (`kanban-orchestrator` / `kanban-worker`) instead
+- **Notion document management** → use `notion` instead
+- **Google Docs/Sheets** → use `google-workspace` instead
+- **Jira issue tracking** → use Jira REST API directly (this skill is Linear-specific)
+- **Airtable records** → use `airtable` instead
 
 ## Setup
 
@@ -390,20 +412,17 @@ Combine filters with `or: [...]` for OR logic (default is AND within a filter ob
 ## Pitfalls
 
 1. **Using "Bearer" prefix with API keys** — Linear personal API keys use `Authorization: $LINEAR_API_KEY` (no "Bearer" prefix). OAuth tokens use "Bearer". Mixing them up returns 401.
-
 2. **Hardcoded team keys** — Don't assume team keys like "ENG" exist. Always query `teams` first to get actual team keys and UUIDs for the workspace.
-
 3. **Missing `first: N` in queries** — Without a limit, Linear returns the default page size (50). For large workspaces, this wastes rate limit budget. Always specify `first: N`.
-
 4. **Ignoring the `errors` array** — GraphQL returns HTTP 200 even for errors. Always check the `errors` array in the response. A response with `{"data": null, "errors": [...]}` is not a success.
-
 5. **Using `contentData` instead of `contentState`** — The ProseMirror JSON field is `contentState`, not `contentData`. Using `contentData` returns a 400 error. The Markdown body is in `content`.
-
 6. **Assuming `document(id:)` accepts slugIds** — It only accepts UUIDs. To fetch by slugId from a URL, use the `documents(filter: { slugId: { eq: "..." } })` collection filter.
-
 7. **Not checking `success` in mutation responses** — Mutations return `{ success: bool, issue: ... }`. Always check `success` before assuming the mutation worked.
-
 8. **Wrong sibling skill** — This skill is for Linear project management. For GitHub issues/PRs → `github-issues` / `github-pr-workflow`. For Jira → use Jira API directly. For general project planning → `writing-plans`.
+9. **Shell escaping in curl GraphQL queries** — JSON strings in GraphQL queries need proper escaping. Use single quotes for the outer shell string and escaped double quotes inside, or use the Python helper script to avoid quoting issues entirely.
+10. **Missing `$LINEAR_API_KEY`** — If the env var isn't set, all queries fail with 401. Run `hermes setup` or check `~/.hermes/.env`. Verify with `echo $LINEAR_API_KEY` (should not be empty).
+11. **Pagination cursor reuse** — Cursors are opaque strings that expire after some time. Don't store them between sessions; always fetch a fresh first page.
+12. **Rate limit exhaustion from broad queries** — Listing all issues without `first: N` or filters can burn through your 5,000 req/hr budget fast. Always scope queries with filters and pagination limits.
 
 ## Important Notes
 

@@ -1,17 +1,53 @@
 ---
 name: kanban-orchestrator
 description: Decomposition playbook + anti-temptation rules for an orchestrator profile routing work through Kanban. The "don't do the work yourself" rule and the basic lifecycle are auto-injected into every kanban worker's system prompt; this skill is the deeper playbook when you're specifically playing the orchestrator role.
-version: 3.0.0
+version: 3.1.0
 platforms: [linux, macos, windows]
+environments: [kanban]
 metadata:
   hermes:
     tags: [kanban, multi-agent, orchestration, routing]
     related_skills: [kanban-worker]
+    trigger_conditions:
+      - "decompose this into tasks"
+      - "create kanban tasks"
+      - "kanban board"
+      - "fan out"
+      - "multi-agent workflow"
+      - "orchestrate this"
+      - "parallel workers"
+      - "split into lanes"
+      - "dispatch to workers"
+      - "create task graph"
+      - "route to profiles"
+      - "orchestrator"
+      - "task decomposition"
 ---
 
 # Kanban Orchestrator — Decomposition Playbook
 
 > The **core worker lifecycle** (including the `kanban_create` fan-out pattern and the "decompose, don't execute" rule) is auto-injected into every kanban process via the `KANBAN_GUIDANCE` system-prompt block. This skill is the deeper playbook when you're an orchestrator profile whose whole job is routing.
+
+## When to Use
+
+- User asks to decompose a complex goal into parallel subtasks
+- Multiple specialist profiles are needed (research + implementation + review)
+- The work should survive crashes/restarts (long-running or recurring)
+- User wants human-in-the-loop at any step
+- Independent workstreams can run in parallel for speed
+- Review/iteration cycles are expected (draft → review → revise)
+- Audit trail of decisions matters (board rows persist in SQLite)
+- Goal is open-ended and needs persistent worker tracking
+
+## Not For
+
+- **Simple one-shot reasoning tasks** → use `delegate_task` instead
+- **Single agent doing a single task** → use `delegate_task` or handle directly
+- **Quick code generation** → use `codex` or `claude-code` instead
+- **Writing implementation plans** → use `writing-plans` instead
+- **Code review** → use `github-code-review` or `code-review` instead
+- **Kanban worker execution** → use `kanban-worker` instead (this skill is for orchestrators only)
+- **GitHub issue management** → use `github-issues` instead
 
 ## Profiles are user-configured — not a fixed roster
 
@@ -162,21 +198,42 @@ Tell them what you created in plain prose, naming the actual profiles you used:
 
 ## Pitfalls
 
-**Inventing profile names that don't exist.** The dispatcher silently fails to spawn unknown assignees — the card just sits in `ready` forever. Always assign to a profile from your Step 0 discovery; ask the user if you're unsure.
+1. **Inventing profile names that don't exist** — The dispatcher silently fails to spawn unknown assignees — the card just sits in `ready` forever. Always assign to a profile from your Step 0 discovery; ask the user if you're unsure.
+2. **Bundling independent lanes into one card** — If the user asks for two independent outcomes, create two cards. Example: "fix blockers and check model variants" is not one fixer task; create a fixer/engineer card for the fixes and an explorer/researcher card for the variant check, then optionally gate review on both.
+3. **Over-linking because of wording** — "Finally check X" may still be parallel with implementation if X is static config, docs, or source discovery. Link it after implementation only when the check depends on the implementation result.
+4. **Forgetting dependency links** — If the task graph says `research -> implement -> review`, do not create all tasks as independent ready cards. Use parent links so implement/review cannot run before their inputs exist.
+5. **Reassignment vs. new task** — If a reviewer blocks with "needs changes," create a NEW task linked from the reviewer's task — don't re-run the same task with a stern look. The new task is assigned to the original implementer profile.
+6. **Argument order for links** — `kanban_link(parent_id=..., child_id=...)` — parent first. Mixing them up demotes the wrong task to `todo`.
+7. **Don't pre-create the whole graph if the shape depends on intermediate findings** — If T3's structure depends on what T1 and T2 find, let T3 exist as a "synthesize findings" task whose own first step is to read parent handoffs and plan the rest. Orchestrators can spawn orchestrators.
+8. **Tenant inheritance** — If `HERMES_TENANT` is set in your env, pass `tenant=os.environ.get("HERMES_TENANT")` on every `kanban_create` call so child tasks stay in the same namespace.
+9. **Skipping Step 0 (profile discovery)** — Creating tasks without knowing which profiles exist leads to cards that silently sit in `ready` forever. Always run `hermes profile list` or ask the user first.
+10. **Creating cards without showing the graph first** — Users need to correct the decomposition before cards are live. Show the graph, get confirmation, then create.
+11. **Using `kanban_link` after creation instead of `parents`** — The `parents` argument in `kanban_create` is atomic and avoids the race window where a dispatcher claims a child before parent links exist. Always prefer `parents` in the create call.
+12. **Not caching discovered profiles** — Re-running `hermes profile list` multiple times in the same conversation wastes tool calls. Cache the result after Step 0.
 
-**Bundling independent lanes into one card.** If the user asks for two independent outcomes, create two cards. Example: "fix blockers and check model variants" is not one fixer task; create a fixer/engineer card for the fixes and an explorer/researcher card for the variant check, then optionally gate review on both.
+## Goal-mode cards (persistent workers)
 
-**Over-linking because of wording.** "Finally check X" may still be parallel with implementation if X is static config, docs, or source discovery. Link it after implementation only when the check depends on the implementation result.
+By default a dispatched worker gets **one shot** at its card: it does its work, calls `kanban_complete`/`kanban_block`, and exits. For open-ended cards where one turn rarely finishes the job, pass `goal_mode=True` to wrap that worker in a Ralph-style goal loop — the same engine behind the `/goal` slash command:
 
-**Forgetting dependency links.** If the task graph says `research -> implement -> review`, do not create all tasks as independent ready cards. Use parent links so implement/review cannot run before their inputs exist.
+```python
+kanban_create(
+    title="Translate the full docs site to French",
+    body="Acceptance: every page translated, no English left, links intact.",
+    assignee="<translator-profile>",
+    goal_mode=True,        # judge re-checks the card after each turn
+    goal_max_turns=15,     # optional budget (default 20)
+)["task_id"]
+```
 
-**Reassignment vs. new task.** If a reviewer blocks with "needs changes," create a NEW task linked from the reviewer's task — don't re-run the same task with a stern look. The new task is assigned to the original implementer profile.
+How it behaves:
+- After each worker turn, an auxiliary judge evaluates the worker's response against the card's **title + body** (treated as the acceptance criteria).
+- Not done + budget remains → the worker keeps going **in the same session** (full context retained — not a fresh respawn).
+- Worker calls `kanban_complete`/`kanban_block` itself → loop stops, normal lifecycle.
+- Budget exhausted without completion → the card is **blocked** for human review (sticky), never a silent exit.
 
-**Argument order for links.** `kanban_link(parent_id=..., child_id=...)` — parent first. Mixing them up demotes the wrong task to `todo`.
+When to use it: long, multi-step, or "keep going until X is true" cards. When NOT to: cheap one-shot cards (translation of a single string, a quick lookup) — the judge overhead isn't worth it, and the dispatcher's existing retry/circuit-breaker already handles transient worker failures.
 
-**Don't pre-create the whole graph if the shape depends on intermediate findings.** If T3's structure depends on what T1 and T2 find, let T3 exist as a "synthesize findings" task whose own first step is to read parent handoffs and plan the rest. Orchestrators can spawn orchestrators.
-
-**Tenant inheritance.** If `HERMES_TENANT` is set in your env, pass `tenant=os.environ.get("HERMES_TENANT")` on every `kanban_create` call so child tasks stay in the same namespace.
+Write the body as **explicit acceptance criteria** — the judge is only as good as the goal text. "Translate the README" is weaker than "Translate every section of the README to French; no English sentences remain."
 
 ## Recovering stuck workers
 

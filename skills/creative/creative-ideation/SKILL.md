@@ -2,7 +2,7 @@
 name: ideation
 title: Creative Ideation — Constraint-Driven Project Generation
 description: "Generate project ideas via creative constraints."
-version: 1.0.0
+version: 1.1.0
 author: SHL0MS
 license: MIT
 platforms: [linux, macos, windows]
@@ -11,15 +11,44 @@ metadata:
     tags: [Creative, Ideation, Projects, Brainstorming, Inspiration]
     category: creative
     requires_toolsets: []
+    trigger_conditions:
+      - "I want to build something"
+      - "give me a project idea"
+      - "I'm bored"
+      - "what should I make"
+      - "inspire me"
+      - "I have tools but no direction"
+      - "weekend project ideas"
+      - "side project inspiration"
+      - "creative coding prompts"
+      - "maker project ideas"
+      - "something to build this weekend"
+      - "project suggestions"
+      - "what can I build with"
 ---
 
 # Creative Ideation
 
-## When to use
+## When to Use
 
-Use when the user says 'I want to build something', 'give me a project idea', 'I'm bored', 'what should I make', 'inspire me', or any variant of 'I have tools but no direction'. Works for code, art, hardware, writing, tools, and anything that can be made.
+- User says "I want to build something" with no direction → pick a random constraint
+- User wants a weekend project → "Nothing new except glue" or "Start at the punchline"
+- User is learning a language → "Blatantly copy something" or "Automate the annoying thing"
+- User wants something weird/funny → "Hostile UI", "Frankenstein week", "Start at the punchline"
+- User wants something useful/practical → "Solve your own itch", "The CLI tool that should exist"
+- User wants something beautiful/artistic → "Do a lot of math", "One million of something"
+- User is burned out → "High concept low effort", "Make something that dies"
+- User wants a challenge → "One million of something", "Subtract", "Take two"
 
-Generate project ideas through creative constraints. Constraint + direction = creativity.
+## Not For
+
+- **Structured project planning with milestones** → use `writing-plans` instead
+- **Breaking down an existing idea into tasks** → use `subagent-driven-development` instead
+- **Technical architecture decisions** → use `plan` instead
+- **Code implementation of a chosen idea** → use `spike` or `subagent-driven-development` instead
+- **Researching feasibility of a specific concept** → use `github-issues` or `web_search` instead
+- **Managing a project backlog** → use `linear` or `github-issues` instead
+- **Generating code from specifications** → use `codex` or `claude-code` instead
 
 ## How It Works
 
@@ -146,6 +175,21 @@ See `references/full-prompt-library.md` for 30+ additional constraints across co
 ```
 
 After the user picks one, start building — create the project, write the code, iterate.
+
+## Pitfalls
+
+1. **Picking a constraint too narrow** — The user says "I want a React project" and you only offer React ideas. The best outputs cross domains. Fix: Interpret every constraint broadly — a "CLI tool" constraint can yield a hardware project, an art project can become a script.
+2. **Offering only one idea** — Single ideas feel like prescriptions. Three gives choice and shows range. Fix: Always generate exactly 3 ideas per constraint.
+3. **Over-specifying the implementation** — "Build a Python CLI with click and rich" kills creativity before it starts. Fix: Suggest a stack in the ⏱ line only, keep the pitch open.
+4. **Ignoring the user's actual constraints** — User says "I only know Go" and you suggest Rust. Fix: Match constraints to user context using the Matching table.
+5. **Treating constraints as rigid rules** — "Frankenstein week" doesn't require literal Frankenstein code. Fix: The constraint is a direction, not a specification.
+6. **Not building after they pick** — Ideation without execution is daydreaming. Fix: Immediately scaffold the project when they choose.
+7. **Using the same 3 constraints every time** — Gets stale fast. Fix: Rotate through the full library; reference `references/full-prompt-library.md` for 30+ more.
+8. **Skipping the "Why it's interesting" sentence** — Ideas without rationale feel random. Fix: Every pitch needs 2-3 sentences explaining the hook.
+9. **No time estimate** — Users can't gauge commitment. Fix: Always include ⏱ with weekend/week/month.
+10. **Forgetting the constraint name in output** — The constraint provides framing. Fix: Output format requires `## Constraint: [Name]` header.
+11. **Confusing ideation with planning** — This skill generates *ideas*, not task breakdowns. Fix: For task decomposition, use `writing-plans` or `subagent-driven-development`.
+12. **Not referencing the full library** — The 14 constraints here are a starter set. Fix: Always mention `references/full-prompt-library.md` for 30+ additional constraints.
 
 ## Attribution
 

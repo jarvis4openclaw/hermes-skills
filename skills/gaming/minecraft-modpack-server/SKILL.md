@@ -1,16 +1,50 @@
 ---
 name: minecraft-modpack-server
 description: "Host modded Minecraft servers (CurseForge, Modrinth)."
+version: 1.1.0
 tags: [minecraft, gaming, server, neoforge, forge, modpack]
 platforms: [linux, macos]
+metadata:
+  hermes:
+    tags: [minecraft, gaming, server, neoforge, forge, modpack]
+    category: gaming
+    trigger_conditions:
+      - "minecraft server"
+      - "modded minecraft"
+      - "minecraft modpack"
+      - "set up minecraft server"
+      - "host minecraft"
+      - "curseforge server"
+      - "modrinth server"
+      - "neoforge server"
+      - "forge server"
+      - "minecraft server backup"
+      - "minecraft performance"
+      - "minecraft java"
+      - "modpack server pack"
 ---
 
 # Minecraft Modpack Server Setup
 
-## When to use
+## When to Use
+
 - User wants to set up a modded Minecraft server from a server pack zip
 - User needs help with NeoForge/Forge server configuration
 - User asks about Minecraft server performance tuning or backups
+- User wants to update Java version for a modpack
+- User needs firewall configured for Minecraft
+- User wants automated hourly backups with rotation
+- User needs JVM argument tuning for a specific mod count
+- User wants server.properties configured for a specific play style
+
+## Not For
+
+- **Vanilla Minecraft servers** → use the official Minecraft server documentation directly
+- **Docker-based Minecraft hosting** → use `docker` or `proxmox-host-management` instead
+- **Game server management on Proxmox** → use `proxmox-host-management` instead
+- **General server backup strategies** → use `ssh-file-deploy` or `cron-model-optimization` instead
+- **Playing Minecraft as a client** → use `pokemon-player` for game emulation; this skill is server-only
+- **Modpack development/creation** → use CurseForge/Modrinth authoring tools directly
 
 ## Gather User Preferences First
 Before starting setup, ask the user for:
@@ -171,14 +205,19 @@ Add hourly cron:
 ```
 
 ## Pitfalls
-- ALWAYS set `allow-flight=true` for modded — mods with jetpacks/flight will kick players otherwise
-- `max-tick-time=180000` or higher — modded servers often have long ticks during worldgen
-- First startup is SLOW (several minutes for big packs) — don't panic
-- "Can't keep up!" warnings on first launch are normal, settles after initial chunk gen
-- If online-mode=false, set enforce-secure-profile=false too or clients get rejected
-- The pack's startserver.sh often has an auto-restart loop — make a clean launch script without it
-- Delete the world/ folder to regenerate with a new seed
-- Some packs have env vars to control behavior (e.g., ATM10 uses ATM10_JAVA, ATM10_RESTART, ATM10_INSTALL_ONLY)
+
+1. **Forgetting `allow-flight=true`** — Mods with jetpacks, flying mounts, or creative flight items will kick players if this is false. Always set to true for modded servers.
+2. **`max-tick-time` too low** — Default 60000ms is too short for modded world generation. Set to 180000 or higher. The server will crash-loop during initial worldgen otherwise.
+3. **First startup is slow** — Expect several minutes for big packs (200+ mods). "Can't keep up!" warnings are normal during initial chunk generation. Don't kill the process.
+4. **`online-mode` and `enforce-secure-profile` mismatch** — If `online-mode=false`, set `enforce-secure-profile=false` or clients get rejected. These must match.
+5. **Auto-restart loops in pack scripts** — The pack's `startserver.sh` often has an auto-restart loop. Make a clean launch script without it, or use the `INSTALL_ONLY` env var.
+6. **Java version mismatch** — Minecraft 1.21+ needs Java 21, not 17. Check the pack's documentation or the `startserver.sh` for the required Java version. `java -version` after install.
+7. **RAM overallocation** — Give Minecraft too much RAM and the OS starves. Leave at least 8GB free. Check with `free -h` before setting `-Xmx`.
+8. **Wrong Forge/NeoForge args path** — The `@libraries/net/neoforged/...` path is NeoForge-specific. Forge uses a different path. Check `startserver.sh` for the exact launch command.
+9. **`wget` fails on CurseForge downloads** — Some CurseForge server packs require authentication or a browser fetch. Fall back to manual download and `scp` the zip.
+10. **Backup fills disk** — World folders can grow to 10+ GB. Set `MAX_BACKUPS` to a reasonable number (24 = 1 day of hourly backups). Monitor disk with `df -h`.
+11. **Pack-specific env vars** — Some packs use env vars to control behavior (e.g., ATM10 uses `ATM10_JAVA`, `ATM10_RESTART`, `ATM10_INSTALL_ONLY`). Check the pack's README before assuming generic args.
+12. **Firewall blocks LAN** — `ufw allow 25565/tcp` only opens TCP. If using LAN mode with Bedrock or Geyser, also open UDP: `sudo ufw allow 25565/udp`.
 
 ## Verification
 - `pgrep -fa neoforge` or `pgrep -fa minecraft` to check if running
