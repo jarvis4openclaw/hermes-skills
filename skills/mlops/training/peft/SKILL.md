@@ -1,19 +1,53 @@
 ---
 name: peft-fine-tuning
 description: Parameter-efficient fine-tuning for LLMs using LoRA, QLoRA, and 25+ methods. Use when fine-tuning large models (7B-70B) with limited GPU memory, when you need to train <1% of parameters with minimal accuracy loss, or for multi-adapter serving. HuggingFace's official library integrated with transformers ecosystem.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [peft>=0.13.0, transformers>=4.45.0, torch>=2.0.0, bitsandbytes>=0.43.0]
 metadata:
   hermes:
     tags: [Fine-Tuning, PEFT, LoRA, QLoRA, Parameter-Efficient, Adapters, Low-Rank, Memory Optimization, Multi-Adapter]
-
+    trigger_conditions:
+      - "fine-tune with LoRA"
+      - "QLoRA fine-tuning"
+      - "PEFT fine-tuning"
+      - "parameter-efficient fine-tuning"
+      - "LoRA adapter"
+      - "train with LoRA"
+      - "load LoRA weights"
+      - "merge LoRA adapter"
+      - "multi-adapter serving"
+      - "IA3 fine-tuning"
+      - "prefix tuning"
+      - "4-bit quantization training"
+      - "LoRA target modules"
 ---
 
 # PEFT (Parameter-Efficient Fine-Tuning)
 
 Fine-tune LLMs by training <1% of parameters using LoRA, QLoRA, and 25+ adapter methods.
+
+## When to Use
+
+- Fine-tuning 7B-70B models on consumer GPUs (RTX 4090, A100) with limited VRAM
+- Training multiple task-specific adapters from one base model for multi-tenant serving
+- Running QLoRA (4-bit quantization + LoRA) to fit 70B models on a single 24GB GPU
+- Iterating quickly on fine-tuning experiments with 6MB adapter checkpoints instead of 16GB full models
+- Using LoRA with TRL (SFTTrainer) or Axolotl for supervised fine-tuning
+- Merging trained adapters into the base model for deployment
+- Switching between adapters at runtime for multi-task inference
+- Applying IA3 for ultra-minimal parameter training (0.01% of parameters)
+
+## Not For
+
+- **Training small models (<1B parameters) where full fine-tuning is feasible** → use full fine-tuning instead
+- **Maximum quality with no compute budget constraints** → use full fine-tuning instead, LoRA has ~0.5-1% quality gap
+- **Evaluating fine-tuned models** → use `evaluating-llms-harness` instead
+- **Serving fine-tuned models at scale** → use `vllm` or `tensorrt-llm` instead
+- **Training from scratch (pretraining)** → use `torchtitan` or `accelerate` instead
+- **RL-based fine-tuning (RLHF/DPO/GRPO)** → use `trl-fine-tuning` or `grpo-rl-training` instead
+- **Fine-tuning vision models** → use `stable-diffusion-image-generation` or `segment-anything-model` instead
 
 ## When to use PEFT
 
@@ -361,6 +395,32 @@ outputs = llm.generate(
 |-------|---------|------|-------|
 | Llama 2-7B | 45.3 | 44.8 | 44.1 |
 | Llama 2-13B | 54.8 | 54.2 | 53.5 |
+
+## Pitfalls
+
+1. **bitsandbytes CUDA setup fails** — QLoRA requires `bitsandbytes` compiled for your CUDA version. On CUDA 12.x, use `pip install bitsandbytes>=0.43.0`. If you get `CUDA_SETUP: CUDA version mismatch`, install the prebuilt wheel: `pip install bitsandbytes --prefer-binary`. Verify with `python -c "import bitsandbytes; print(bitsandbytes.__version__)"`.
+
+2. **`target_modules` doesn't match model architecture** — Using `["q_proj", "v_proj"]` on a model that uses `["c_attn"]` results in zero trainable parameters. Always check the model's module names: `print([n for n, _ in model.named_modules() if "proj" in n or "attn" in n or "fc" in n])`. Use `"all-linear"` in PEFT 0.6.0+ as a safe default.
+
+3. **`prepare_model_for_kbit_training` not called before QLoRA** — Skipping this step causes `RuntimeError: element 0 of tensors does not require grad`. Always call `model = prepare_model_for_kbit_training(model)` before `get_peft_model()` when using 4-bit quantization.
+
+4. **Merged model size is full model size** — `merge_and_unload()` produces a full-precision model, not just the adapter. A LoRA adapter is 6MB; the merged model is 16GB. Only merge when deploying to production. For development, save and load adapters separately.
+
+5. **`pad_token` not set causes training crash** — If `tokenizer.pad_token` is None, the Trainer fails silently with NaN losses. Always set it: `tokenizer.pad_token = tokenizer.eos_token`. For models without an eos_token, use `tokenizer.add_special_tokens({'pad_token': '[PAD]'})`.
+
+6. **Gradient checkpointing not enabled for large models** — Without `model.gradient_checkpointing_enable()`, a 13B model with LoRA r=16 may still OOM on 24GB. Enable it after `get_peft_model()`: `model.gradient_checkpointing_enable()`. Reduces memory by ~30% at the cost of ~20% slower training.
+
+7. **`lora_alpha` misunderstood as learning rate** — `lora_alpha` is a scaling factor, not a learning rate. The effective scaling is `alpha / r`. `alpha=32, r=16` = scaling factor 2.0. `alpha=16, r=16` = scaling factor 1.0 (conservative). The actual learning rate is set via `TrainingArguments(learning_rate=2e-4)`.
+
+8. **Adapter not found when loading from different path** — `PeftModel.from_pretrained()` expects `adapter_config.json` and `adapter_model.safetensors` in the directory. If you see `OSError: Can't load adapter_model`, check that the directory contains both files. Use `model.save_pretrained("./path")` not `torch.save()`.
+
+9. **Multi-adapter conflicts with same target modules** — Loading two adapters with different ranks but same target modules causes `ValueError: adapter already exists`. Give each adapter a unique name: `model.load_adapter("./path", adapter_name="unique_name")`. Use `model.set_adapter("unique_name")` to switch.
+
+10. **QLoRA with `load_in_4bit=True` but wrong compute dtype** — Using `bnb_4bit_compute_dtype=torch.float16` on bf16-capable GPUs (A100, H100) wastes precision. Use `bnb_4bit_compute_dtype=torch.bfloat16` for Ampere+ GPUs. For older GPUs (V100, T4), float16 is correct.
+
+11. **`save_strategy="epoch"` with large datasets loses intermediate checkpoints** — If training crashes after epoch 2 of 3, all progress is lost. Use `save_strategy="steps"` with `save_steps=500` for more granularity. LoRA adapters are only 6MB — saving frequently has negligible disk cost.
+
+12. **Training with `fp16=True` on bf16-native GPUs** — A100/H100 GPUs train faster and more stably with bf16. Set `bf16=True` instead of `fp16=True` on Ampere+ GPUs. For older GPUs (V100), fp16 is correct. Check with `torch.cuda.is_bf16_supported()`.
 
 ## Common issues
 

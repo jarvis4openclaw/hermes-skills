@@ -1,7 +1,7 @@
 ---
 name: arxiv
 description: "Search arXiv papers by keyword, author, category, or ID."
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
@@ -9,11 +9,44 @@ metadata:
   hermes:
     tags: [Research, Arxiv, Papers, Academic, Science, API]
     related_skills: [ocr-and-documents]
+    trigger_conditions:
+      - "search arxiv"
+      - "find papers on arxiv"
+      - "arxiv search"
+      - "look up paper on arxiv"
+      - "get arxiv paper"
+      - "arxiv paper by ID"
+      - "semantic scholar"
+      - "find academic papers"
+      - "citation count"
+      - "related papers"
+      - "research papers"
+      - "bibtex"
+      - "arxiv category"
 ---
 
 # arXiv Research
 
 Search and retrieve academic papers from arXiv via their free REST API. No API key, no dependencies — just curl.
+
+## When to Use
+
+- Searching for academic papers on arXiv by keyword, author, or category
+- Retrieving paper metadata (title, authors, abstract, categories) by arXiv ID
+- Generating BibTeX citations from arXiv papers
+- Reading paper abstracts and full PDFs via web extraction
+- Finding citation counts and references via Semantic Scholar API
+- Getting paper recommendations based on a seed paper
+- Looking up author profiles and h-index on Semantic Scholar
+- Building a complete research workflow: discover → assess → read → cite
+
+## Not For
+
+- **Reading local PDFs with OCR** → use `ocr-and-documents` instead
+- **General web research (not academic papers)** → use `web_search` or `web_extract` instead
+- **Writing academic papers** → use `ml-paper-writing` instead
+- **Training or evaluating ML models** → use `peft-fine-tuning` or `evaluating-llms-harness` instead
+- **Managing references with a citation manager** → use a dedicated tool like Zotero or Mendeley
 
 ## Quick Reference
 
@@ -257,6 +290,32 @@ curl -s "https://api.semanticscholar.org/graph/v1/author/search?query=Yann+LeCun
 |-----|------|------|
 | arXiv | ~1 req / 3 seconds | None needed |
 | Semantic Scholar | 1 req / second | None (100/sec with API key) |
+
+## Pitfalls
+
+1. **arXiv rate limiting (HTTP 503)** — arXiv returns 503 when hitting rate limits. Wait 3+ seconds between requests. If you get 503, add a `sleep 5` and retry. Batch requests to minimize API calls.
+
+2. **XML parsing errors on empty results** — When no papers match, the API returns an Atom feed with zero entries. The Python one-liner will silently produce no output. Always check the return code and handle empty `<entry>` lists. Add `if len(root.findall('a:entry', ns)) == 0: print("No results found")` before the loop.
+
+3. **Old-format arXiv IDs break URL construction** — Papers before 2007 use format `hep-th/0601001` instead of `2402.03300`. The ID extraction `split('/abs/')[-1]` works for both, but the PDF URL `https://arxiv.org/pdf/{id}` requires the full ID including prefix. Always use the extracted ID as-is without stripping the prefix.
+
+4. **Semantic Scholar 404 for recent papers** — Papers submitted in the last 24–48 hours may not be indexed yet. If Semantic Scholar returns 404 for a valid arXiv ID, fall back to arXiv-only metadata. Wait 1–2 days and retry.
+
+5. **BibTeX key collision** — The generated BibTeX key (`lastName + year + rawId`) may collide for multi-author papers with the same first author and year. Manually disambiguate by appending a letter suffix (`2024a`, `2024b`). Check for duplicates before using.
+
+6. **Withdrawn papers appear in search results** — The arXiv API returns withdrawn papers. Their `<summary>` field contains a withdrawal notice. Always check the summary for "withdrawn" or "retracted" before treating a result as valid. The metadata may be incomplete for withdrawn papers.
+
+7. **PDF extraction fails for scanned/image-heavy papers** — Older papers or scanned submissions may be image-based PDFs. `web_extract` returns garbled or empty content. Use `ocr-and-documents` skill for OCR-based extraction, or read the abstract page instead.
+
+8. **arXiv search query syntax errors** — Spaces in search terms must be URL-encoded as `+` or `%20`. Unescaped spaces break the query. Always use `+` between words: `all:transformer+attention`, not `all:transformer attention`. For exact phrases, wrap in quotes: `ti:"chain+of+thought"`.
+
+9. **Semantic Scholar rate limit (HTTP 429) with no key** — Without an API key, Semantic Scholar limits to 1 request/second. Burst requests get 429. Add `sleep 1` between calls. For bulk queries, [get a free API key](https://api.semanticscholar.org/api-docs/#tag/API-Key) for 100 req/sec.
+
+10. **Helper script not found at expected path** — The `scripts/search_arxiv.py` helper is relative to the skill directory. If the script path resolution fails, use the inline Python one-liners instead — they're functionally equivalent and don't depend on script location.
+
+11. **Versioned arXiv IDs break exact-match lookups** — When fetching by ID, using `2402.03300v2` vs `2402.03300` returns different results. The unversioned ID always resolves to the latest version. Use `vN` suffix for immutable citations. The API `<id>` field returns the versioned URL.
+
+12. **Large result sets time out** — `max_results=30000` with verbose parsing may time out on slow connections. Cap at `max_results=100` for interactive use. Paginate with `start=` parameter for large batches: `start=0`, `start=100`, etc.
 
 ## Notes
 

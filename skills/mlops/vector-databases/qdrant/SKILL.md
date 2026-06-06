@@ -1,19 +1,53 @@
 ---
 name: qdrant-vector-search
 description: High-performance vector similarity search engine for RAG and semantic search. Use when building production RAG systems requiring fast nearest neighbor search, hybrid search with filtering, or scalable vector storage with Rust-powered performance.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [qdrant-client>=1.12.0]
 metadata:
   hermes:
     tags: [RAG, Vector Search, Qdrant, Semantic Search, Embeddings, Similarity Search, HNSW, Production, Distributed]
-
+    trigger_conditions:
+      - "set up qdrant"
+      - "vector database"
+      - "qdrant vector search"
+      - "semantic search with qdrant"
+      - "RAG with qdrant"
+      - "qdrant collection"
+      - "qdrant docker"
+      - "qdrant quantization"
+      - "hybrid search qdrant"
+      - "sparse vectors qdrant"
+      - "qdrant payload index"
+      - "qdrant cloud"
+      - "qdrant performance tuning"
 ---
 
 # Qdrant - Vector Similarity Search Engine
 
 High-performance vector database written in Rust for production RAG and semantic search.
+
+## When to Use
+
+- Setting up a vector database for production RAG with low-latency requirements
+- Performing hybrid search combining dense vectors with metadata filtering
+- Running Qdrant via Docker for local development with persistent storage
+- Creating collections with custom HNSW parameters for your vector dimensions
+- Enabling quantization (scalar/product/binary) for memory-efficient large collections
+- Indexing payload fields for faster filtered search
+- Deploying with Qdrant Cloud for managed infrastructure
+- Using multi-vector or sparse vector (BM25/SPLADE) collections
+
+## Not For
+
+- **Simple embedded vector storage for prototyping** → use `chroma` instead
+- **Maximum raw speed for research/batch processing** → use `faiss` instead
+- **Fully managed zero-ops vector database** → use `pinecone` instead
+- **GraphQL-native queries with built-in vectorizers** → use Weaviate instead
+- **Training embeddings or fine-tuning models** → use `peft-fine-tuning` or `sentence-transformers` instead
+- **Evaluating retrieval quality** → use `evaluating-llms-harness` instead
+- **Local LLM inference with vector search** → use `llama-cpp` instead
 
 ## When to use Qdrant
 
@@ -446,6 +480,32 @@ client.update_collection(
 4. **Sharding** - Use for collections >10M vectors
 5. **On-disk storage** - Enable `on_disk_payload` for large payloads
 6. **Connection pooling** - Reuse client instances
+
+## Pitfalls
+
+1. **Docker container not reachable on port 6333** — The default Docker run command maps ports but doesn't survive container restarts. Use `docker run -d --name qdrant --restart unless-stopped -p 6333:6333 -p 6334:6334 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant` for persistent setup. Verify with `curl http://localhost:6333/health`.
+
+2. **Collection already exists error** — `create_collection` raises `qdrant_client.http.exceptions.UnexpectedResponse` if the collection name is taken. Use `client.collection_exists("name")` to check first, or call `client.delete_collection("name")` if you want to recreate it. In production, use `client.get_collections()` to list existing collections.
+
+3. **Vector dimension mismatch** — The `size` parameter in `VectorParams` must match your embedding model's output dimension. MiniLM-L6-v2 = 384, text-embedding-ada-002 = 1536, BGE-large = 1024. Mismatch causes `UnexpectedResponse: Wrong input: Vector dimension error`. Always verify with `len(embedding)` before creating the collection.
+
+4. **Port 6333 vs 6334 confusion** — Port 6333 is REST API, 6334 is gRPC. The Python client defaults to REST (6333). If using gRPC (`prefer_grpc=True`), ensure port 6334 is exposed. Docker must publish both ports: `-p 6333:6333 -p 6334:6334`.
+
+5. **Filter on unindexed field is slow** — Filtering on a payload field without an index triggers a full scan. Always create payload indexes on fields used in filters: `client.create_payload_index(collection_name="docs", field_name="category", field_schema=PayloadSchemaType.KEYWORD)`. Check existing indexes with `client.list_snapshots()`.
+
+6. **Out of memory with large collections** — Collections over 1M vectors without quantization can exhaust RAM. Enable scalar quantization: `quantization_config=ScalarQuantization(scalar=ScalarQuantizationConfig(type=ScalarType.INT8, quantile=0.99, always_ram=True))`. Also set `on_disk_payload=True` to store payloads on disk.
+
+7. **gRPC connection errors on cloud** — Qdrant Cloud uses HTTPS with API key auth. The gRPC port may be blocked by corporate firewalls. Always test REST first: `client = QdrantClient(url="https://your-cluster.cloud.qdrant.io", api_key="your-key")`. If gRPC fails, the client falls back to REST automatically.
+
+8. **Point ID collision on upsert** — `upsert` with the same ID overwrites the existing point. Use UUIDs for deduplication: `import uuid; point_id = str(uuid.uuid4())`. For idempotent inserts, use `client.set_payload()` on existing points instead of re-upserting.
+
+9. **Sparse vector index requires explicit configuration** — Creating a sparse vector collection without `SparseIndexParams` silently succeeds but search fails. Always include `index=SparseIndexParams(on_disk=False)` in `SparseVectorParams`. For production, set `on_disk=True` to save RAM.
+
+10. **Quantization rescore overhead** — `rescore=True` improves accuracy but doubles query latency. For latency-sensitive applications, disable rescore: `search_params={"quantization": {"rescore": False}}`. Test accuracy impact on your data before disabling.
+
+11. **wait=True blocks on large batches** — Setting `wait=True` on `upsert` with 100k+ points blocks until indexing completes. For bulk loads, use `wait=False` and check progress with `client.count(collection_name)`. The collection is searchable immediately but results improve as indexing progresses.
+
+12. **Distance metric affects search quality** — COSINE is correct for normalized embeddings (most text models). Using DOT on unnormalized vectors produces poor results. For embeddings from sentence-transformers (which are L2-normalized), COSINE and DOT are equivalent. Check your embedding model's normalization before choosing.
 
 ## Common issues
 

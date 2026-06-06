@@ -1,7 +1,7 @@
 ---
 name: segment-anything-model
 description: "SAM: zero-shot image segmentation via points, boxes, masks."
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [segment-anything, transformers>=4.30.0, torch>=1.7.0]
@@ -9,12 +9,46 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [Multimodal, Image Segmentation, Computer Vision, SAM, Zero-Shot]
-
+    trigger_conditions:
+      - "segment anything"
+      - "SAM segmentation"
+      - "image segmentation"
+      - "segment object in image"
+      - "automatic mask generation"
+      - "SAM predictor"
+      - "point prompt segmentation"
+      - "box prompt segmentation"
+      - "SAM model"
+      - "zero-shot segmentation"
+      - "Meta AI segmentation"
+      - "segment anything model"
+      - "SAM ONNX"
 ---
 
 # Segment Anything Model (SAM)
 
 Comprehensive guide to using Meta AI's Segment Anything Model for zero-shot image segmentation.
+
+## When to Use
+
+- Segmenting any object in images without task-specific training
+- Building interactive annotation tools with point/box prompts
+- Generating training data masks for other vision models
+- Performing zero-shot segmentation on new image domains (medical, satellite, etc.)
+- Extracting objects with transparent backgrounds for compositing
+- Running automatic mask generation to discover all objects in an image
+- Deploying SAM via ONNX for browser or edge device inference
+- Using SAM with HuggingFace Transformers for integration with other pipelines
+
+## Not For
+
+- **Real-time object detection with class labels** → use YOLO or Detectron2 instead
+- **Semantic/panoptic segmentation with category labels** → use Mask2Former instead
+- **Text-prompted segmentation** → use GroundingDINO + SAM instead
+- **Video segmentation** → use SAM 2 instead
+- **Training custom segmentation models** → use `peft-fine-tuning` or `unsloth` instead
+- **Image generation from text** → use `stable-diffusion-image-generation` instead
+- **General image classification** → use `clip` instead
 
 ## When to use SAM
 
@@ -482,6 +516,32 @@ mask_generator = SamAutomaticMaskGenerator(
 # Export with --return-single-mask for faster inference
 ```
 
+## Pitfalls
+
+1. **CUDA out of memory with ViT-H** — ViT-H requires ~8GB VRAM for inference. Use ViT-B (375MB checkpoint) for GPUs with <8GB. Clear cache between images: `torch.cuda.empty_cache()`. Reduce image size before feeding to SAM: `cv2.resize(image, (1024, 1024))`.
+
+2. **Checkpoint download fails with 404** — The `wget` URLs from `dl.fbaipublicfiles.com` may be rate-limited. Use the HuggingFace path instead: `from transformers import SamModel; model = SamModel.from_pretrained("facebook/sam-vit-huge")`. This auto-downloads the checkpoint.
+
+3. **`set_image` must be called before `predict`** — Calling `predictor.predict()` without `set_image()` raises `AttributeError`. The predictor needs image embeddings first. Always call `predictor.set_image(image)` once per image, then run multiple `predict()` calls with different prompts.
+
+4. **BGR vs RGB color space mismatch** — OpenCV reads images in BGR, SAM expects RGB. Forgetting `cv2.cvtColor(image, cv2.COLOR_BGR2RGB)` produces subtly wrong masks. Always convert: `image = cv2.cvtColor(cv2.imread("img.jpg"), cv2.COLOR_BGR2RGB)`.
+
+5. **Point coordinates are (x, y) not (row, col)** — SAM expects `(x, y)` = `(column, row)`. Swapping them produces masks for the wrong region. If using OpenCV mouse callbacks, `event` provides `(x, y)` correctly — don't swap.
+
+6. **`multimask_output=True` returns 3 masks** — When `multimask_output=True`, `predict()` returns 3 masks with different ambiguity levels. Always select the best by score: `best_mask = masks[np.argmax(scores)]`. Use `multimask_output=False` when prompts are unambiguous (box + point).
+
+7. **Automatic mask generator produces too many/no masks** — Default `points_per_side=32` generates 1024 grid points. For simple images, reduce to 16. If no masks appear, lower `pred_iou_thresh` to 0.7 or `stability_score_thresh` to 0.8. For dense scenes, increase `points_per_side` to 64.
+
+8. **ONNX export requires specific model type** — The `--model-type` flag must match the checkpoint: `vit_h` for ViT-H, `vit_l` for ViT-L, `vit_b` for ViT-B. Mismatch causes shape errors. The ONNX export script is in the segment-anything repo: `scripts/export_onnx_model.py`.
+
+9. **Grayscale medical images cause 3-channel errors** — SAM expects 3-channel RGB input. Single-channel grayscale images must be converted: `rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)`. Alternatively, stack the grayscale channel 3 times: `rgb = np.stack([gray]*3, axis=-1)`.
+
+10. **HuggingFace vs original SAM API differences** — The HuggingFace `SamModel` uses a different API than the original `segment-anything` package. `SamProcessor` handles image preprocessing, and masks need `post_process_masks()`. Don't mix APIs — choose one and stick with it.
+
+11. **Large images cause OOM during `set_image`** — `set_image()` computes embeddings for the full image. For images >2048px, resize first: `image = cv2.resize(image, (1024, 1024))`. Embeddings scale with image area, so halving dimensions reduces memory by 4x.
+
+12. **Logits input for iterative refinement must be from previous predict** — The `mask_input` parameter expects the `logits` output from a previous `predict()` call, not the binary mask. Using `mask_input=best_mask` produces garbled results. Always use: `mask_input=logits[np.argmax(scores)][None, :, :]`.
+
 ## Common issues
 
 | Issue | Solution |
@@ -498,9 +558,3 @@ mask_generator = SamAutomaticMaskGenerator(
 - **[Troubleshooting](references/troubleshooting.md)** - Common issues and solutions
 
 ## Resources
-
-- **GitHub**: https://github.com/facebookresearch/segment-anything
-- **Paper**: https://arxiv.org/abs/2304.02643
-- **Demo**: https://segment-anything.com
-- **SAM 2 (Video)**: https://github.com/facebookresearch/segment-anything-2
-- **HuggingFace**: https://huggingface.co/facebook/sam-vit-huge

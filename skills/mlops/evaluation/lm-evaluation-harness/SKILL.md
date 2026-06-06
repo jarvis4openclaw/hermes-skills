@@ -1,7 +1,7 @@
 ---
 name: evaluating-llms-harness
 description: "lm-eval-harness: benchmark LLMs (MMLU, GSM8K, etc.)."
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [lm-eval, transformers, vllm]
@@ -9,7 +9,20 @@ platforms: [linux, macos]
 metadata:
   hermes:
     tags: [Evaluation, LM Evaluation Harness, Benchmarking, MMLU, HumanEval, GSM8K, EleutherAI, Model Quality, Academic Benchmarks, Industry Standard]
-
+    trigger_conditions:
+      - "evaluate LLM"
+      - "benchmark model"
+      - "run MMLU"
+      - "lm-eval"
+      - "lm evaluation harness"
+      - "evaluate HuggingFace model"
+      - "benchmark suite"
+      - "compare model quality"
+      - "GSM8K evaluation"
+      - "HumanEval benchmark"
+      - "track training progress"
+      - "vLLM evaluation"
+      - "model evaluation"
 ---
 
 # lm-evaluation-harness - LLM Benchmarking
@@ -17,6 +30,27 @@ metadata:
 ## What's inside
 
 Evaluates LLMs across 60+ academic benchmarks (MMLU, HumanEval, GSM8K, TruthfulQA, HellaSwag). Use when benchmarking model quality, comparing models, reporting academic results, or tracking training progress. Industry standard used by EleutherAI, HuggingFace, and major labs. Supports HuggingFace, vLLM, APIs.
+
+## When to Use
+
+- Running standard benchmarks (MMLU, GSM8K, HellaSwag) on HuggingFace models
+- Comparing model quality across multiple checkpoints or model families
+- Tracking training progress with periodic evaluation checkpoints
+- Generating comparison tables for model releases or academic papers
+- Using vLLM backend for 5-10x faster evaluation throughput
+- Evaluating quantized (4-bit/8-bit) models with the HF backend
+- Running custom evaluation tasks for domain-specific benchmarks
+- Evaluating API-based models (OpenAI, Anthropic) via the API backend
+
+## Not For
+
+- **Broader evaluation including fairness, efficiency, calibration** → use HELM (Stanford) instead
+- **Instruction-following evaluation with LLM judges** → use AlpacaEval instead
+- **Conversational multi-turn evaluation** → use MT-Bench instead
+- **Training or fine-tuning models** → use `peft-fine-tuning`, `unsloth`, or `axolotl` instead
+- **Serving models for inference** → use `vllm` or `llama-cpp` instead
+- **Domain-specific custom evaluation** → build custom scripts instead
+- **Searching for papers about benchmarks** → use `arxiv` instead
 
 ## Quick start
 
@@ -395,6 +429,32 @@ lm_eval --model vllm \
 - **MT-Bench**: Conversational multi-turn evaluation
 - **Custom scripts**: Domain-specific evaluation
 
+## Pitfalls
+
+1. **`--tasks mmlu` vs `mmlu_direct` vs `mmlu_fewshot`** — Different task names produce different results. Standard MMLU papers use `--tasks mmlu` with `--num_fewshot 5`. Using `mmlu_direct` or `mmlu_fewshot` changes the prompt format and produces non-comparable scores. Always verify task names with `lm_eval --tasks list | grep mmlu`.
+
+2. **Results differ from published papers** — Fewshot count, task name, and model precision all affect scores. Most papers use `--num_fewshot 5`. Verify `--model_args pretrained=<name>,dtype=bfloat16` matches the paper's precision. Check `--batch_size` isn't causing OOM-induced truncation.
+
+3. **HumanEval requires `--allow_code_execution`** — Without this flag, HumanEval returns 0% pass rate. Add `--allow_code_execution` and ensure `pip install human-eval` is installed. The flag is intentionally required for safety — it executes arbitrary model-generated Python code.
+
+4. **vLLM backend OOM with large models** — `tensor_parallel_size` must match the number of GPUs. For a 70B model on 4 GPUs: `--model_args pretrained=model,tensor_parallel_size=4,gpu_memory_utilization=0.8`. Setting `tensor_parallel_size=1` on a model that doesn't fit on one GPU causes OOM.
+
+5. **`--output_path` writes JSON, not append** — Running evaluation twice with the same `--output_path` overwrites previous results. Use unique filenames: `--output_path results/model-step-1000.json`. The `--log_samples` flag adds per-sample predictions to the output.
+
+6. **CPU offloading is extremely slow** — `--model_args device_map=auto,offload_folder=offload` enables CPU offloading but makes MMLU take 10+ hours instead of 2 hours. Only use CPU offloading for models that don't fit in GPU memory at all. For 7B models, use `load_in_8bit=True` instead.
+
+7. **`--batch_size auto` may pick too large a batch** — Auto-detection can overestimate available VRAM and cause OOM mid-evaluation. If OOM occurs, set explicit batch size: `--batch_size 1` and increase until OOM, then back off. For 7B models on 24GB, start with `--batch_size 8`.
+
+8. **Tokenization mismatch produces wrong results** — If `--model_args tokenizer=` differs from `pretrained=`, the model may produce garbled outputs. Always match tokenizer to model: `--model_args pretrained=model-name,tokenizer=model-name`. For custom checkpoints, ensure the tokenizer is saved alongside the model.
+
+9. **MMLU subset evaluation misleading** — `--tasks mmlu_stem` evaluates only STEM subjects, producing a higher/lower score than full MMLU. This is useful for debugging but not comparable to published MMLU scores. Only report `--tasks mmlu` for paper comparisons.
+
+10. **Multi-GPU vLLM requires same tensor_parallel_size across runs** — Changing `tensor_parallel_size` between runs with the same output directory can cause cache corruption. Use separate output directories for different configurations: `--output_path results/tp2/` and `--output_path results/tp4/`.
+
+11. **Evaluation timeout on slow benchmarks** — MMLU full evaluation takes ~2 hours on a single A100. If the cron job or session has a timeout, use `--tasks mmlu_stem` (faster) or run benchmarks individually in separate commands. GSM8K (~5 min) and HellaSwag (~10 min) are safe for time-constrained runs.
+
+12. **`--log_samples` dramatically increases output size** — With `--log_samples`, the output JSON includes every individual prediction. For MMLU (14k+ questions), this can produce 50MB+ JSON files. Only enable when you need per-sample analysis. Omit `--log_samples` for routine benchmarking to keep output manageable.
+
 ## Common issues
 
 **Issue: Evaluation too slow**
@@ -493,6 +553,3 @@ lm_eval --model hf \
 - Docs: https://github.com/EleutherAI/lm-evaluation-harness/tree/main/docs
 - Task library: 60+ tasks including MMLU, GSM8K, HumanEval, TruthfulQA, HellaSwag, ARC, WinoGrande, etc.
 - Leaderboard: https://huggingface.co/spaces/HuggingFaceH4/open_llm_leaderboard (uses this harness)
-
-
-
