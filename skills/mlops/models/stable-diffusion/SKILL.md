@@ -1,13 +1,27 @@
 ---
 name: stable-diffusion-image-generation
 description: State-of-the-art text-to-image generation with Stable Diffusion models via HuggingFace Diffusers. Use when generating images from text prompts, performing image-to-image translation, inpainting, or building custom diffusion pipelines.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [diffusers>=0.30.0, transformers>=4.41.0, accelerate>=0.31.0, torch>=2.0.0]
 metadata:
   hermes:
     tags: [Image Generation, Stable Diffusion, Diffusers, Text-to-Image, Multimodal, Computer Vision]
+    trigger_conditions:
+      - "generate image from text"
+      - "text to image generation"
+      - "create image with stable diffusion"
+      - "image to image translation"
+      - "inpaint image"
+      - "outpaint image"
+      - "controlnet"
+      - "lora adapter"
+      - "stable diffusion pipeline"
+      - "diffusers library"
+      - "sdxl generation"
+      - "flux model"
+      - "image generation workflow"
 
 ---
 
@@ -452,62 +466,57 @@ image = pipe(
 ```
 
 ### Workflow 2: Fast prototyping
+## When to Use
 
-```python
-from diffusers import AutoPipelineForText2Image, LCMScheduler
-import torch
+**Use this skill when:**
 
-# Use LCM for 4-8 step generation
-pipe = AutoPipelineForText2Image.from_pretrained(
-    "stabilityai/stable-diffusion-xl-base-1.0",
-    torch_dtype=torch.float16
-).to("cuda")
+- Generating images from text descriptions (text-to-image)
+- Performing image-to-image translation (style transfer, enhancement, variation)
+- Inpainting (filling in masked regions with context-aware content)
+- Outpainting (extending images beyond their original boundaries)
+- Creating variations of existing images with different seeds or prompts
+- Building custom diffusion pipelines for specialized workflows
+- Using ControlNet for spatial conditioning (edges, poses, depth maps)
+- Loading and applying LoRA adapters for style/character adaptation
+- Working with SDXL, SD 3.0, or Flux models for higher quality outputs
+- Optimizing memory for consumer GPUs (CPU offloading, attention slicing, VAE tiling)
+- Setting up local inference servers (llama.cpp server mode, Ollama integration)
 
-# Load LCM LoRA for fast generation
-pipe.load_lora_weights("latent-consistency/lcm-lora-sdxl")
-pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
-pipe.fuse_lora()
+## Not For
 
-# Generate in ~1 second
-image = pipe(
-    "A beautiful landscape",
-    num_inference_steps=4,
-    guidance_scale=1.0
-).images[0]
-```
+- **API-based generation without local GPU** → use `dalle-3` or cloud provider skills instead
+- **Artistic, highly stylized outputs without technical control** → use `midjourney` or `leonardo-ai` skills instead
+- **Google Cloud Vertex AI integration** → use `imagen` skill instead
+- **Web-based creative workflows with no coding** → use `leonardo-ai` or `canva-ai` skills instead
+- **Real-time video generation** → use `stable-video-diffusion` or `sora` skills instead
+- **3D asset generation** → use `tripo-3d` or `meshy` skills instead
+- **Simple image editing (crop, resize, filters)** → use `pillow` or `opencv` skills instead
 
-## Common issues
+## Pitfalls
 
-**CUDA out of memory:**
-```python
-# Enable memory optimizations
-pipe.enable_model_cpu_offload()
-pipe.enable_attention_slicing()
-pipe.enable_vae_slicing()
+1. **CUDA OOM on consumer GPUs** — Enable `pipe.enable_model_cpu_offload()` and `pipe.enable_attention_slicing()` before loading. For SDXL, also use `pipe.enable_vae_tiling()`. Reduce batch size to 1.
 
-# Or use lower precision
-pipe = DiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
-```
+2. **Black or noise output images** — Usually VAE dtype mismatch. Ensure pipeline and VAE share the same dtype: `pipe = pipe.to(dtype=torch.float16)`. Disable safety checker if it's over-filtering: `pipe.safety_checker = None`.
 
-**Black/noise images:**
-```python
-# Check VAE configuration
-# Use safety checker bypass if needed
-pipe.safety_checker = None
+3. **Slow generation (>30s per image)** — Switch to `DPMSolverMultistepScheduler` (15-25 steps) or `LCMScheduler` with LCM LoRA (4-8 steps). Use `pipe.enable_xformers_memory_efficient_attention()` if xformers is installed.
 
-# Ensure proper dtype consistency
-pipe = pipe.to(dtype=torch.float16)
-```
+4. **ControlNet conditioning ignored** — ControlNet requires the correct preprocessing (Canny edges, OpenPose, depth map). Verify control image matches the ControlNet type. Use `controlnet_conditioning_scale` parameter (0.5-1.0 typical).
 
-**Slow generation:**
-```python
-# Use faster scheduler
-from diffusers import DPMSolverMultistepScheduler
-pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+5. **LoRA weights not applying** — Call `pipe.fuse_lora()` after loading weights for inference speed, or `pipe.set_adapters()` for multiple LoRAs with weights. Unload with `pipe.unload_lora_weights()` before loading new ones.
 
-# Reduce steps
-image = pipe(prompt, num_inference_steps=20).images[0]
-```
+6. **Inconsistent results across runs** — Set a fixed `generator=torch.Generator(device="cuda").manual_seed(42)` for reproducibility. Note: results may still vary across PyTorch/CUDA versions.
+
+7. **SDXL requires different pipeline class** — Use `StableDiffusionXLPipeline` or `AutoPipelineForText2Image`, not `StableDiffusionPipeline`. SDXL native resolution is 1024x1024.
+
+8. **Flux models need different scheduler** — Flux works best with `EulerDiscreteScheduler` or `FlowMatchEulerDiscreteScheduler`. Don't use DPM++ schedulers with Flux.
+
+9. **Negative prompts have no effect on some models** — SD 1.x/2.x and SDXL respect negative prompts. Flux and SD 3.0 may ignore them. Test with obvious negative prompts (\"blurry, ugly\") to verify.
+
+10. **VAE decoding artifacts at edges** — Enable `pipe.enable_vae_slicing()` and `pipe.enable_vae_tiling()` for images >1024px. For SDXL, the ft-mse VAE (`stabilityai/sd-vae-ft-mse`) reduces color shift.
+
+11. **xformers not installed but code calls it** — `pipe.enable_xformers_memory_efficient_attention()` requires `pip install xformers`. On Windows, use the pre-built wheel matching your PyTorch/CUDA version.
+
+12. **Model loading hangs on first run** — HuggingFace Hub downloads models to `~/.cache/huggingface/hub`. First run downloads 2-10GB. Pre-download with `huggingface-cli download <model-id>` for offline environments.
 
 ## References
 

@@ -1,13 +1,27 @@
 ---
 name: gguf-quantization
 description: GGUF format and llama.cpp quantization for efficient CPU/GPU inference. Use when deploying models on consumer hardware, Apple Silicon, or when needing flexible quantization from 2-8 bit without GPU requirements.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [llama-cpp-python>=0.2.0]
 metadata:
   hermes:
     tags: [GGUF, Quantization, llama.cpp, CPU Inference, Apple Silicon, Model Compression, Optimization]
+    trigger_conditions:
+      - "quantize model gguf"
+      - "llama.cpp quantization"
+      - "convert to gguf format"
+      - "run model on cpu"
+      - "apple silicon inference"
+      - "local llm inference"
+      - "model quantization q4_k_m"
+      - "gguf model format"
+      - "llama-cli inference"
+      - "llama-server openai compatible"
+      - "ollama modelfile gguf"
+      - "importance matrix imatrix"
+      - "k-quant methods"
 
 ---
 
@@ -361,60 +375,53 @@ EOF
 
 # Create Ollama model
 ollama create mymodel -f Modelfile
+## When to Use
 
-# Run
-ollama run mymodel "Hello!"
-```
+**Use this skill when:**
 
-### LM Studio
+- Converting HuggingFace models to GGUF format for local inference
+- Quantizing models to run on consumer hardware (CPU, Apple Silicon, limited VRAM)
+- Deploying LLMs locally without cloud dependencies (privacy, offline, cost)
+- Running inference with llama.cpp CLI, Python bindings, or OpenAI-compatible server
+- Integrating with local AI tools (Ollama, LM Studio, text-generation-webui)
+- Using importance matrix (imatrix) for better quality at low bit rates (Q4 and below)
+- Creating multiple quantization levels from one FP16 model for quality/size tradeoffs
+- Running on Apple Silicon with Metal acceleration (M1/M2/M3/M4)
 
-1. Place GGUF file in `~/.cache/lm-studio/models/`
-2. Open LM Studio and select the model
-3. Configure context length and GPU offload
-4. Start inference
+## Not For
 
-### text-generation-webui
+- **Maximum accuracy with NVIDIA GPU calibration** → use `awq-quantization` or `gptq-quantization` skills instead
+- **Fast calibration-free quantization for HuggingFace transformers** → use `hqq-quantization` skill instead
+- **Simple integration with transformers library** → use `bitsandbytes-quantization` skill instead
+- **Production NVIDIA deployment with maximum throughput** → use `tensorrt-llm` or `vllm-serving` skill instead
+- **Model serving at scale with OpenAI API compatibility** → use `serving-llms-vllm` skill instead
+- **Training or fine-tuning models** → use `trl-fine-tuning`, `axolotl`, or `peft-fine-tuning` skills instead
 
-```bash
-# Place in models folder
-cp model-q4_k_m.gguf text-generation-webui/models/
+## Pitfalls
 
-# Start with llama.cpp loader
-python server.py --model model-q4_k_m.gguf --loader llama.cpp --n-gpu-layers 35
-```
+1. **Model loads slowly on first run** — Use `--mmap` flag with llama-cli for memory-mapped loading: `./llama-cli -m model.gguf --mmap`. First run downloads model to `~/.cache/huggingface/hub` if not cached.
 
-## Best practices
+2. **Out of memory during inference** — Reduce GPU layers: `./llama-cli -m model.gguf -ngl 20` (from 35). Or use smaller quantization: `./llama-quantize model-f16.gguf model-q3_k_m.gguf Q3_K_M`. For CPU only, use `-ngl 0`.
 
-1. **Use K-quants**: Q4_K_M offers best quality/size balance
-2. **Use imatrix**: Always use importance matrix for Q4 and below
-3. **GPU offload**: Offload as many layers as VRAM allows
-4. **Context length**: Start with 4096, increase if needed
-5. **Thread count**: Match physical CPU cores, not logical
-6. **Batch size**: Increase n_batch for faster prompt processing
+3. **Poor quality at Q4 and below** — Always use importance matrix for Q4_K_M and lower. Generate imatrix: `./llama-imatrix -m model-f16.gguf -f calibration.txt -o model.imatrix`, then quantize: `./llama-quantize --imatrix model.imatrix model-f16.gguf model-q4_k_m.gguf Q4_K_M`.
 
-## Common issues
+4. **Quantization fails with "out of memory" on imatrix generation** — Reduce chunk size: `--chunk 256` or disable GPU offload for imatrix: `-ngl 0`. Use smaller calibration dataset.
 
-**Model loads slowly:**
-```bash
-# Use mmap for faster loading
-./llama-cli -m model.gguf --mmap
-```
+5. **Metal build fails on Apple Silicon** — Run `make clean && make GGML_METAL=1`. Requires Xcode command line tools. If `ggml-metal.metal` not found, update llama.cpp to latest.
 
-**Out of memory:**
-```bash
-# Reduce GPU layers
-./llama-cli -m model.gguf -ngl 20  # Reduce from 35
+6. **CUDA build fails** — Ensure CUDA toolkit matches driver version. Run `make clean && make GGML_CUDA=1`. Check `nvcc --version` matches `nvidia-smi` CUDA version.
 
-# Or use smaller quantization
-./llama-quantize model-f16.gguf model-q3_k_m.gguf Q3_K_M
-```
+7. **Ollama Modelfile template syntax errors** — Use proper escaping in Modelfile. `TEMPLATE \"\"\"{{ .System }}{{ .Prompt }}\"\"\"` (triple quotes). Test with `ollama run mymodel \"test\"` before committing.
 
-**Poor quality at low bits:**
-```bash
-# Always use imatrix for Q4 and below
-./llama-imatrix -m model-f16.gguf -f calibration.txt -o model.imatrix
-./llama-quantize --imatrix model.imatrix model-f16.gguf model-q4_k_m.gguf Q4_K_M
-```
+8. **Python llama-cpp-python install fails** — Requires CMake and C++ compiler. On Linux: `sudo apt install cmake build-essential`. On Mac: `brew install cmake`. Use `pip install llama-cpp-python --verbose` to see build errors.
+
+9. **Context length exceeded** — Default n_ctx=4096. Increase for long conversations: `Llama(model_path=..., n_ctx=8192)`. Note: larger context = more RAM. For 7B Q4_K_M, 8K context ≈ 6GB RAM.
+
+10. **Thread count mismatch** — Use physical CPU cores, not logical. Check with `lscpu | grep "Core(s) per socket"`. Set `n_threads=8` for 8 physical cores. Hyperthreading doesn't help inference.
+
+11. **Server mode doesn't accept connections** — Bind to `0.0.0.0` not `localhost`: `--host 0.0.0.0`. Check firewall. Test locally first: `curl http://localhost:8080/v1/models`.
+
+12. **Chat format mismatch** — Model must match `chat_format` parameter. Use `chat_format=\"llama-3\"` for Llama 3, `\"chatml\"` for Qwen/Mistral, `\"mistral\"` for Mistral. Wrong format = garbled output.
 
 ## References
 

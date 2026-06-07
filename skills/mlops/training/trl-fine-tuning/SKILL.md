@@ -1,13 +1,27 @@
 ---
 name: fine-tuning-with-trl
 description: Fine-tune LLMs using reinforcement learning with TRL - SFT for instruction tuning, DPO for preference alignment, PPO/GRPO for reward optimization, and reward model training. Use when need RLHF, align model with preferences, or train from human feedback. Works with HuggingFace Transformers.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [trl, transformers, datasets, peft, accelerate, torch]
 metadata:
   hermes:
     tags: [Post-Training, TRL, Reinforcement Learning, Fine-Tuning, SFT, DPO, PPO, GRPO, RLHF, Preference Alignment, HuggingFace]
+    trigger_conditions:
+      - "fine tune llm with rlhf"
+      - "train model with human feedback"
+      - "preference alignment dpo"
+      - "reinforcement learning from human feedback"
+      - "sft instruction tuning"
+      - "dpo training"
+      - "ppo training"
+      - "grpo training"
+      - "reward model training"
+      - "trl library"
+      - "align model preferences"
+      - "post training llm"
+      - "human feedback training"
 
 ---
 
@@ -340,83 +354,54 @@ trl grpo \
     --num_generations 4
 ```
 
-## When to use vs alternatives
+## When to Use
 
-**Use TRL when:**
-- Need to align model with human preferences
-- Have preference data (chosen/rejected pairs)
-- Want to use reinforcement learning (PPO, GRPO)
-- Need reward model training
-- Doing RLHF (full pipeline)
+**Use this skill when:**
 
-**Method selection**:
-- **SFT**: Have prompt-completion pairs, want basic instruction following
-- **DPO**: Have preferences, want simple alignment (no reward model needed)
-- **PPO**: Have reward model, need maximum control over RL
-- **GRPO**: Memory-constrained, want online RL
-- **Reward Model**: Building RLHF pipeline, need to score generations
+- Fine-tuning LLMs with instruction-following data (SFT — Supervised Fine-Tuning)
+- Aligning model outputs with human preferences (DPO — Direct Preference Optimization)
+- Running full RLHF pipelines (SFT → Reward Model → PPO)
+- Training reward models to score generation quality
+- Memory-constrained online RL (GRPO — Group Relative Policy Optimization)
+- Working with preference datasets (chosen/rejected pairs)
+- Training on consumer or mid-range GPUs (LoRA + gradient checkpointing)
+- Post-training alignment of already instruct-tuned models
 
-**Use alternatives instead:**
-- **HuggingFace Trainer**: Basic fine-tuning without RL
-- **Axolotl**: YAML-based training configuration
-- **LitGPT**: Educational, minimal fine-tuning
-- **Unsloth**: Fast LoRA training
+## Not For
 
-## Common issues
+- **Basic fine-tuning without RL or preferences** → use `huggingface-trainer` or `axolotl` skill instead
+- **YAML-based training configuration** → use `axolotl` skill instead
+- **Educational or minimal fine-tuning** → use `litgpt` skill instead
+- **Fast LoRA-only training with memory optimization** → use `unsloth` skill instead
+- **PEFT (LoRA/QLoRA) without RL** → use `peft-fine-tuning` skill instead
+- **Distributed large-scale pretraining** → use `torchtitan` or `distributed-llm-pretraining` skill instead
+- **Model evaluation and benchmarking** → use `lm-evaluation-harness` skill instead
 
-**Issue: OOM during DPO training**
+## Pitfalls
 
-Reduce batch size and sequence length:
-```python
-config = DPOConfig(
-    per_device_train_batch_size=1,  # Reduce from 4
-    max_length=512,  # Reduce from 1024
-    gradient_accumulation_steps=8  # Maintain effective batch
-)
-```
+1. **OOM during DPO training** — DPO stores a reference model, doubling VRAM. Reduce `per_device_train_batch_size=1` and `max_length=512`, increase `gradient_accumulation_steps=8`. Enable `model.gradient_checkpointing_enable()`.
 
-Or use gradient checkpointing:
-```python
-model.gradient_checkpointing_enable()
-```
+2. **Poor alignment quality after DPO** — Tune `beta` parameter (default 0.1). Higher beta (0.5) stays closer to reference model; lower beta (0.01) is more aggressive. Start at 0.1 and search ±0.05.
 
-**Issue: Poor alignment quality**
+3. **Reward model not learning** — Verify dataset has clear chosen/rejected pairs. Increase `num_train_epochs=3`, try `learning_rate=1e-5` to `5e-6`. Check loss is decreasing over steps.
 
-Tune beta parameter:
-```python
-# Higher beta = more conservative (stays closer to reference)
-config = DPOConfig(beta=0.5)  # Default 0.1
+4. **PPO training unstable** — Increase `kl_coef=0.1` (default 0.05) and reduce `cliprange=0.1` (default 0.2). Monitor KL divergence — if it spikes, training diverged.
 
-# Lower beta = more aggressive alignment
-config = DPOConfig(beta=0.01)
-```
+5. **GRPO reward function returns wrong shape** — Rewards must be a list of floats, one per completion. Default `num_generations=4` means 4 completions per prompt, so return 4 scores.
 
-**Issue: Reward model not learning**
+6. **SFT dataset format mismatch** — SFTTrainer expects specific formats (conversational, instruction, or text). Use `dataset_text_field` for plain text, or format as `{"messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}`.
 
-Check loss type and learning rate:
-```python
-config = RewardConfig(
-    learning_rate=1e-5,  # Try different LR
-    num_train_epochs=3  # Train longer
-)
-```
+7. **DPO dataset missing required columns** — DPOTrainer needs `prompt`, `chosen`, `rejected` columns. If using UltraFeedback, use `trl-lib/ultrafeedback_binarized` (not raw ultrafeedback).
 
-Ensure preference dataset has clear winners:
-```python
-# Verify dataset
-print(dataset[0])
-# Should have clear chosen > rejected
-```
+8. **SFTTrainer ignores custom tokenizer** — Pass `processing_class=tokenizer` (not `tokenizer=tokenizer`). TRL 0.12+ uses `processing_class` instead of `tokenizer` parameter.
 
-**Issue: PPO training unstable**
+9. **Mixed precision crashes on older GPUs** — BF16 requires Ampere+ (A100, H100, RTX 3090+). Use FP16 on older GPUs: `torch_dtype=torch.float16`. Set `bf16=False` in config.
 
-Adjust KL coefficient:
-```python
-config = PPOConfig(
-    kl_coef=0.1,  # Increase from 0.05
-    cliprange=0.1  # Reduce from 0.2
-)
-```
+10. **GRPO needs prompt-only dataset** — Unlike SFT/DPO, GRPO generates completions itself. Dataset should only contain prompts (no completions). Use `trl-lib/tldr` for testing.
+
+11. **RewardTrainer requires num_labels=1** — Load `AutoModelForSequenceClassification` with `num_labels=1` for a single reward score. Using the default (2 labels) causes shape mismatch.
+
+12. **Save/Restore: LoRA adapters not merged** — After training with LoRA, call `model.merge_and_unload()` before saving the full model. Otherwise only adapter weights are saved and the model is unusable without the base model.
 
 ## Advanced topics
 
