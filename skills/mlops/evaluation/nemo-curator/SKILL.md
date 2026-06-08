@@ -1,13 +1,27 @@
 ---
 name: nemo-curator
 description: GPU-accelerated data curation for LLM training. Supports text/image/video/audio. Features fuzzy deduplication (16× faster), quality filtering (30+ heuristics), semantic deduplication, PII redaction, NSFW detection. Scales across GPUs with RAPIDS. Use for preparing high-quality training datasets, cleaning web data, or deduplicating large corpora.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [nemo-curator, cudf, dask, rapids]
 metadata:
   hermes:
     tags: [Data Processing, NeMo Curator, Data Curation, GPU Acceleration, Deduplication, Quality Filtering, NVIDIA, RAPIDS, PII Redaction, Multimodal, LLM Training Data]
+    trigger_conditions:
+      - "nemo curator"
+      - "data curation"
+      - "deduplicate training data"
+      - "clean web scrape data"
+      - "common crawl filtering"
+      - "PII redaction dataset"
+      - "fuzzy deduplication GPU"
+      - "prepare LLM training data"
+      - "quality filter corpus"
+      - "NSFW detection dataset"
+      - "semantic deduplication"
+      - "minhash deduplication"
+      - "GPU data processing RAPIDS"
 
 ---
 
@@ -15,24 +29,26 @@ metadata:
 
 NVIDIA's toolkit for preparing high-quality training data for LLMs.
 
-## When to use NeMo Curator
+## When to Use
 
-**Use NeMo Curator when:**
-- Preparing LLM training data from web scrapes (Common Crawl)
-- Need fast deduplication (16× faster than CPU)
+- Preparing LLM training data from web scrapes (Common Crawl, RedPajama)
+- Need fast deduplication at scale — 16× faster than CPU-based approaches
 - Curating multi-modal datasets (text, images, video, audio)
-- Filtering low-quality or toxic content
-- Scaling data processing across GPU cluster
+- Filtering low-quality, repetitive, or toxic content from large corpora
+- Scaling data processing across a GPU cluster with Dask/RAPIDS
+- Need exact, fuzzy (MinHash+LSH), and semantic deduplication in one pipeline
+- Redacting PII (emails, phone numbers, names, locations) from training data
+- Running quality classifiers (DeBERTa-based) on raw text at batch scale
 
-**Performance**:
-- **16× faster** fuzzy deduplication (8TB RedPajama v2)
-- **40% lower TCO** vs CPU alternatives
-- **Near-linear scaling** across GPU nodes
+## Not For
 
-**Use alternatives instead**:
-- **datatrove**: CPU-based, open-source data processing
-- **dolma**: Allen AI's data toolkit
-- **Ray Data**: General ML data processing (no curation focus)
+- **Small datasets (<10GB)** → CPU tools like `datatrove` or `text-dedup` are simpler; GPU overhead isn't worth it
+- **Single-node CPU processing** → use `datatrove` instead; NeMo Curator requires GPU
+- **General ML data processing (not curation)** → use `Ray Data` or `Apache Spark` instead
+- **Streaming/real-time deduplication** → NeMo Curator is batch-oriented; use `bloom-filter` or `simhash` streaming
+- **Text-only deduplication at small scale** → use `text-dedup` (MinHash) or `deduplicate-text-datasets` instead
+- **Binary deduplication (images/video files)** → use `imagededup` or perceptual hashing instead
+- **Training data annotation/labeling** → use `Label Studio` or `Prodigy` instead; NeMo Curator filters, doesn't label
 
 ## Quick start
 
@@ -370,6 +386,32 @@ cluster.close()
 - NVIDIA used NeMo Curator to prepare Nemotron-4 training data
 - Open-source datasets curated: RedPajama v2, The Pile
 
+## Pitfalls
+
+1. **`cudf` import error after installing nemo-curator** — RAPIDS/cuDF requires a compatible CUDA version. Verify CUDA toolkit matches: `nvcc --version` and `python -c "import cudf; print(cudf.__version__)"`. If cuDF fails, reinstall with explicit CUDA version: `uv pip install "nemo-curator[text_cuda12]"` (matching your CUDA install).
+
+2. **Dask client hangs on multi-GPU setup** — `LocalCUDACluster` requires `dask-cuda` and `ucx` to be installed. If the client hangs at `get_client()`, install with: `conda install -c rapidsai -c conda-forge dask-cuda ucx`. Also verify `nvidia-smi` shows all GPUs.
+
+3. **Fuzzy deduplication runs out of GPU memory on large datasets** — MinHash signatures for billions of documents can exceed GPU VRAM. Reduce `num_hashes` from 260 to 128, or increase `num_buckets` to 50 to spread the load. For datasets >10TB, use `dask_cuda.LocalCUDACluster` with `device_memory_limit` to spill to CPU.
+
+4. **Semantic deduplication downloads embedding model on every run** — The `SemanticDuplicates` module downloads the embedding model from HuggingFace Hub on first use. Cache it by setting `HF_HOME=/path/to/cache` or running a warm-up: `from sentence_transformers import SentenceTransformer; SentenceTransformer("all-MiniLM-L6-v2")`. This downloads ~80MB.
+
+5. **PII redaction misses non-standard formats** — The default `PIIRedactor` uses Presidio, which detects standard formats (email, phone, SSN). For custom entity types (API keys, tokens, internal IDs), register a custom recognizer: `from presidio_analyzer import PatternRecognizer; pii_redactor.add_recognizer(PatternRecognizer(...))`. See the Presidio docs for regex-based custom recognizers.
+
+6. **Quality classifier OOM on large batches** — The DeBERTa classifier loads a full model. Reduce `batch_size` to 64 or 32. If still OOM, use `device="cpu"` and accept slower throughput, or switch to a lighter classifier like `nvidia/quality-classifier-deberta-v3-small`.
+
+7. **`DocumentDataset.read_parquet` fails on S3 paths** — NeMo Curator uses `dask.dataframe.read_parquet` under the hood. For S3, install `s3fs`: `pip install s3fs`. Pass storage options: `DocumentDataset.read_parquet("s3://bucket/*.parquet", storage_options={"anon": False})`.
+
+8. **Exact dedup removes too many documents** — `ExactDuplicates` uses hash-based matching; even a single whitespace difference makes documents "different." Normalize whitespace first: `from nemo_curator.modifiers import UnicodeReformatter; dataset = Modify(UnicodeReformatter())(dataset)`. This normalizes Unicode and whitespace before dedup.
+
+9. **Language filter removes multilingual documents incorrectly** — `LanguageIdentificationFilter` uses fastText, which may misclassify code-switched or mixed-language documents. Increase the confidence threshold: `LanguageIdentificationFilter(target_languages=["en"], min_confidence=0.9)`. Review a sample of filtered documents to calibrate.
+
+10. **Output parquet files are too small (many tiny files)** — Dask writes one file per partition by default. Repartition before saving: `dataset.df.repartition(npartitions=10).to_parquet(...)`. Aim for ~128-256MB per file for optimal downstream loading.
+
+11. **`NSFWClassifier` requires downloading a ~500MB model** — The NSFW classifier uses a CLIP-based model. On first run, it downloads from HuggingFace Hub. If behind a proxy, set `HF_ENDPOINT=https://hf-mirror.com`. Cache the model in `~/.cache/huggingface/` to avoid repeated downloads.
+
+12. **GPU memory leak when processing many small batches** — Dask+CUDA workers may hold GPU memory between tasks. Set `device_memory_limit="4GB"` in `LocalCUDACluster` to force spilling. After processing, explicitly call `client.restart()` to clear CUDA context and free GPU memory.
+
 ## References
 
 - **[Filtering Guide](references/filtering.md)** - 30+ quality filters, heuristics
@@ -381,6 +423,3 @@ cluster.close()
 - **Docs**: https://docs.nvidia.com/nemo-framework/user-guide/latest/datacuration/
 - **Version**: 0.4.0+
 - **License**: Apache 2.0
-
-
-

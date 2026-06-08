@@ -1,6 +1,7 @@
 ---
 name: windows-ssh
 description: Manage Windows hosts over OpenSSH — reliable commands, known failure modes, and .NET workarounds for non-interactive SSH sessions. Use when running remote commands on Windows via SSH.
+version: 1.1.0
 triggers:
   - windows ssh
   - remote windows
@@ -8,9 +9,45 @@ triggers:
   - windows disk space
   - windows event log
   - ARCTIC
+metadata:
+  hermes:
+    trigger_conditions:
+      - "windows ssh"
+      - "remote windows command"
+      - "powershell over ssh"
+      - "check windows disk space"
+      - "windows event log"
+      - "ARCTIC PC"
+      - "connect to windows machine"
+      - "ssh into windows"
+      - "windows server remote"
+      - "windows uptime check"
+      - "windows process list"
+      - "windows memory usage"
+      - "windows cpu usage"
 ---
 
 # Windows SSH Management
+
+## When to Use
+
+- Running remote commands on Windows machines over SSH
+- Checking disk space, CPU, memory, or uptime on a Windows host
+- Retrieving event logs from Windows servers
+- Managing processes on remote Windows machines
+- Setting up OpenSSH on a Windows host for the first time
+- Debugging SSH key authentication failures on Windows
+- Working with ARCTIC (Boss's main Windows PC at 192.168.100.18)
+- Replacing WMI/CIM calls that fail in non-interactive SSH sessions
+
+## Not For
+
+- **Linux/macOS remote management** → use standard SSH; these Windows-specific workarounds don't apply
+- **Interactive PowerShell sessions** → use `ssh -t` for PTY; this skill covers non-interactive command execution only
+- **Windows Remote Desktop (RDP)** → use `xfreerdp` or `mstsc` instead
+- **WinRM/PSRemoting** → use `pywinrm` or `Invoke-Command` instead; this skill covers SSH only
+- **Windows service management requiring elevation** → SSH user is non-admin; use `sc` with admin credentials or RDP
+- **File transfer to/from Windows** → use `scp` or `rsync` directly; these don't need the .NET workarounds
 
 ## Known Hosts
 - **ARCTIC** — Boss's main Windows PC — `sshuser@192.168.100.18` — key: `/home/wahid/.ssh/id_ed25519`
@@ -99,60 +136,6 @@ Note: `gcim` (Get-CimInstance) may fail for non-admin users — use this alterna
 
 ---
 
-## Known Issues & Workarounds
-
-### 1. Administrator Accounts Cannot Use SSH Keys
-**Cause:** Windows UAC token filtering — admin users don't get a full token over SSH, so `authorized_keys` is ignored.
-**Workaround:** Always use a dedicated non-admin local user (e.g., `sshuser`).
-
-### 2. Microsoft Account Users Cannot Use SSH Keys
-**Cause:** OpenSSH cannot reliably resolve Microsoft Account (Outlook/Hotmail) identities.
-**Workaround:** Create a local Windows user: `net user sshuser <password> /add`
-
-### 3. `Get-PSDrive` Returns Zero
-**Cause:** PowerShell drive providers are not fully initialized in SSH sessions.
-**Workaround:** Use `[System.IO.DriveInfo]::GetDrives()` instead (see above).
-
-### 4. WMI/CIM Returns Access Denied
-**Cause:** WMI requires admin privileges and an interactive logon session.
-**Workaround:** Use .NET APIs (`System.IO.DriveInfo`, `System.Diagnostics.Process`, `Get-Counter`).
-
-### 5. `authorized_keys` Locked / Undeletable
-**Cause:** File locked by Windows Defender, SYSTEM, or sshd.
-**Fix:**
-```powershell
-Stop-Service sshd
-Stop-Service ssh-agent
-# Disable Defender real-time scanning temporarily
-ren authorized_keys authorized_keys.old
-# Recreate under correct user account
-Start-Service sshd
-```
-
-### 6. Home Directory Not Resolved
-**Cause:** OpenSSH can't find `C:\Users\<user>\.ssh\authorized_keys`.
-**Fix:**
-```powershell
-Set-LocalUser -Name "sshuser" -HomeDirectory "C:\Users\sshuser"
-```
-Or in `C:\ProgramData\ssh\sshd_config`:
-```
-AuthorizedKeysFile C:/Users/%u/.ssh/authorized_keys
-```
-
-### 7. Default Shell is cmd.exe, Not PowerShell
-**Cause:** Windows SSH defaults to `cmd.exe`.
-**Fix (set PowerShell as default):**
-```powershell
-New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
-```
-
-### 8. Exit Code 0 on PowerShell Errors
-**Cause:** Windows SSH can return exit code 0 even when PowerShell throws a terminating error.
-**Workaround:** Always check stdout for error strings, not just exit codes.
-
----
-
 ## Setup (One-Time, Run as Administrator on Windows)
 
 ```powershell
@@ -190,3 +173,29 @@ Restart-Service sshd
 5. Restart sshd after modifying `authorized_keys`
 6. Check stdout for errors, not just exit codes
 7. `sshd_config` is at `C:\ProgramData\ssh\sshd_config` (not `/etc/ssh/`)
+
+## Pitfalls
+
+1. **Administrator accounts cannot use SSH keys** — Windows UAC token filtering strips the admin token over SSH, so `authorized_keys` is ignored even if the file exists and has correct permissions. Always use a dedicated non-admin local user (e.g., `sshuser`). Verify with `whoami /groups | findstr "Mandatory Label"` — it should show "Medium Mandatory Level," not "High."
+
+2. **Microsoft Account users cannot use SSH keys** — OpenSSH cannot reliably resolve Microsoft Account (Outlook/Hotmail) identities because the home directory path includes the email domain. Create a local Windows user: `net user sshuser <password> /add`. Local accounts use `C:\Users\sshuser` which OpenSSH can resolve.
+
+3. **`Get-PSDrive C` returns 0 free space** — PowerShell drive providers are not fully initialized in non-interactive SSH sessions. Always use `[System.IO.DriveInfo]::GetDrives()` instead of `Get-PSDrive` for disk queries. The .NET API doesn't depend on PowerShell providers.
+
+4. **WMI/CIM returns Access Denied** — WMI requires admin privileges and an interactive logon session. Use .NET APIs: `System.IO.DriveInfo` for disks, `System.Diagnostics.Process` for process info, and `Get-Counter` for performance counters. These work without elevation.
+
+5. **`authorized_keys` file locked or undeletable** — Windows Defender, SYSTEM, or sshd may hold file handles. Stop sshd and ssh-agent: `Stop-Service sshd; Stop-Service ssh-agent`. Disable Defender real-time scanning temporarily, then rename the file: `ren authorized_keys authorized_keys.old`. Recreate under the correct user, then restart sshd.
+
+6. **Home directory not resolved by OpenSSH** — OpenSSH can't find `C:\Users\<user>\.ssh\authorized_keys` if the home directory isn't set correctly. Fix: `Set-LocalUser -Name "sshuser" -HomeDirectory "C:\Users\sshuser"`. Alternatively, add `AuthorizedKeysFile C:/Users/%u/.ssh/authorized_keys` to `C:\ProgramData\ssh\sshd_config`.
+
+7. **Default shell is cmd.exe, not PowerShell** — Windows SSH defaults to `cmd.exe`, which doesn't support PowerShell syntax. Set PowerShell as default: `New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force`. Restart sshd after.
+
+8. **Exit code 0 even when PowerShell command fails** — Windows SSH can return exit code 0 even when PowerShell throws a terminating error. Always check stdout for error strings like "Cannot", "Access Denied", "Exception", or "Error" rather than relying on exit codes. Pipe stderr explicitly: `powershell -Command "..." 2>&1`.
+
+9. **PowerShell `-Command` with nested quotes breaks** — PowerShell's quote escaping is different from bash. Use backslash-escaped double quotes inside the PowerShell command: `ssh user@host "powershell -Command \"Get-Process | Select-Object -First 5\""`. For complex commands, base64-encode: `powershell -EncodedCommand $(echo '<command>' | iconv -t UTF-16LE | base64 -w0)`.
+
+10. **`sshd_config` location is different from Linux** — Windows OpenSSH stores config at `C:\ProgramData\ssh\sshd_config` (not `/etc/ssh/sshd_config`). Modifying the wrong file has no effect. After changes, restart sshd: `Restart-Service sshd`.
+
+11. **ACL corruption when modifying `.ssh` from another user account** — Windows ACLs on `C:\Users\sshuser\.ssh` are user-specific. Modifying `authorized_keys` from a different account (even as Administrator) can corrupt the ACL and lock out the SSH user. Always use `icacls` to reset permissions after any file change: `icacls "C:\Users\sshuser\.ssh\authorized_keys" /inheritance:r /grant:r "sshuser:(R,W)"`.
+
+12. **`Get-Counter` fails with "The specified object was not found"** — Performance counters may not be registered in a minimal Windows install. Rebuild counter registry: `lodctr /R` (requires admin). If still failing, check if the counter exists: `Get-Counter -ListSet * | Where-Object { $_.CounterSetName -match "Memory|Processor" }`.

@@ -1,7 +1,7 @@
 ---
 name: architecture-diagram
 description: "Dark-themed SVG architecture/cloud/infra diagrams as HTML."
-version: 1.0.0
+version: 1.1.0
 author: Cocoon AI (hello@cocoon-ai.com), ported by Hermes Agent
 license: MIT
 dependencies: []
@@ -10,11 +10,45 @@ metadata:
   hermes:
     tags: [architecture, diagrams, SVG, HTML, visualization, infrastructure, cloud]
     related_skills: [concept-diagrams, excalidraw]
+    trigger_conditions:
+      - "architecture diagram"
+      - "system architecture"
+      - "cloud infrastructure diagram"
+      - "microservice diagram"
+      - "deployment diagram"
+      - "network diagram"
+      - "AWS architecture"
+      - "backend architecture"
+      - "infrastructure diagram"
+      - "service topology"
+      - "database architecture diagram"
+      - "tech stack diagram"
+      - "dark theme diagram"
 ---
 
 # Architecture Diagram Skill
 
 Generate professional, dark-themed technical architecture diagrams as standalone HTML files with inline SVG graphics. No external tools, no API keys, no rendering libraries — just write the HTML file and open it in a browser.
+
+## When to Use
+
+- Visualizing software system architecture (frontend / backend / database layers)
+- Documenting cloud infrastructure (VPC, regions, subnets, managed services)
+- Mapping microservice or service-mesh topology
+- Creating database + API maps or deployment diagrams
+- Generating quick architecture diagrams for documentation or presentations
+- Producing dark-themed tech visuals that look professional out of the box
+- Needing a self-contained HTML file with no dependencies (offline-capable)
+
+## Not For
+
+- **Hand-drawn whiteboard style** → use `excalidraw` instead
+- **Scientific diagrams (physics, chemistry, biology)** → use `matplotlib` or `manim` instead
+- **Physical objects, hardware, anatomy** → use `architecture-diagram` only for tech-infra; use `excalidraw` or `sketch` for non-tech subjects
+- **Animated explainers or interactive diagrams** → use `manim-video` or `p5js` instead
+- **Floor plans, narrative journeys, educational visuals** → use `excalidraw` or `sketch` instead
+- **Flowcharts or process diagrams** → use `excalidraw` or `mermaid` (via terminal) instead
+- **Light-themed or white-background corporate diagrams** → this skill is dark-themed by design; use `excalidraw` for light themes
 
 ## Scope
 
@@ -136,6 +170,32 @@ The generated HTML file follows a four-part layout:
 - **No External Dependencies:** All CSS and SVG must be inline (except Google Fonts)
 - **No JavaScript:** Use pure CSS for any animations (like pulsing dots)
 - **Compatibility:** Must render correctly in any modern web browser
+
+## Pitfalls
+
+1. **Arrows showing through semi-transparent component boxes** — SVG arrows render on top of elements drawn earlier. Fix by drawing all arrows BEFORE the component rectangles (early in SVG, after the grid). Use the double-rect masking technique: draw an opaque `#0f172a` background rect first, then the semi-transparent styled rect on top.
+
+2. **Legend overlaps boundary boxes** — The legend must be placed below all region/security group boundaries. Calculate `max_y = max(boundary.y + boundary.height for all boundaries)` and place the legend at `max_y + 20`. Test by visually inspecting the output — if the legend is inside a boundary, it's in the wrong place.
+
+3. **Component labels overflow the box width** — JetBrains Mono at 12px renders ~10-12 characters per 60px of box width. For long component names (e.g., "Kubernetes API Server"), use a wider box (160-200px) or split the label across two lines using SVG `<tspan>` elements.
+
+4. **Message bus overlaps services instead of sitting between them** — Message buses must be placed in the vertical gap between service rows. Calculate: `bus_y = service_bottom + (next_service_top - service_bottom - bus_height) / 2`. If the gap is too small (<40px), increase the vertical spacing between components.
+
+5. **Google Fonts fails to load offline** — The diagram references JetBrains Mono from Google Fonts CDN. If the user opens the file without internet, the font won't load and the browser falls back to default monospace. For fully offline use, embed the font as a base64 data URL in the CSS `@font-face` declaration (adds ~200KB).
+
+6. **Security group boundaries clip component labels** — If a security group boundary is too tight around components, the labels may be cut off. Add 20-30px padding inside security groups: `security_group_rect = (min_x - 20, min_y - 20, max_x - min_x + 40, max_y - min_y + 40)`.
+
+7. **Region boundaries overlap with component labels** — Region boundaries are large dashed rectangles. If they're drawn after components, they may cover labels. Draw region boundaries BEFORE all components (after the grid and arrows) in the SVG z-order.
+
+8. **Arrowhead markers don't render** — SVG `<marker>` elements must be defined inside a `<defs>` block and referenced by ID. If the marker ID doesn't match the `marker-end="url(#arrowhead)"` attribute, the arrowhead won't appear. Verify the marker definition and the reference match exactly.
+
+9. **Wrong color mapping for component type** — Components must use the exact `rgba` fill and hex stroke from the color palette table. Using a slightly different color breaks the visual language and makes the diagram harder to read. Double-check the table before generating.
+
+10. **Diagram too wide for the browser viewport** — The SVG viewBox should be set to match the actual content dimensions. If the diagram is wider than ~1200px, consider a vertical layout instead of horizontal, or reduce the spacing between components. Set `viewBox="0 0 <width> <height>"` on the SVG element.
+
+11. **Multiple HTML files overwrite each other** — If the user generates multiple diagrams, they may accidentally overwrite the previous file. Always use a descriptive filename: `./<project-name>-architecture.html` or append a timestamp: `./diagram-$(date +%s).html`.
+
+12. **Template.html not loaded when needed** — Complex diagrams benefit from the full template. Load it with `skill_view(name="architecture-diagram", file_path="templates/template.html")` before generating. The template contains working examples of every component type, arrow style, and boundary — use it as structural reference.
 
 ## Template Reference
 
