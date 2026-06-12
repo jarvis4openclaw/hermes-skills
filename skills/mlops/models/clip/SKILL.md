@@ -1,13 +1,27 @@
 ---
 name: clip
 description: OpenAI's model connecting vision and language. Enables zero-shot image classification, image-text matching, and cross-modal retrieval. Trained on 400M image-text pairs. Use for image search, content moderation, or vision-language tasks without fine-tuning. Best for general-purpose image understanding.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [transformers, torch, pillow]
 metadata:
   hermes:
     tags: [Multimodal, CLIP, Vision-Language, Zero-Shot, Image Classification, OpenAI, Image Search, Cross-Modal Retrieval, Content Moderation]
+    trigger_conditions:
+      - "use CLIP for image search"
+      - "zero-shot image classification"
+      - "image text similarity"
+      - "cross-modal retrieval"
+      - "content moderation with CLIP"
+      - "openai CLIP model"
+      - "image classification without training"
+      - "CLIP embeddings"
+      - "image semantic search CLIP"
+      - "vision language zero shot"
+      - "CLIP install"
+      - "CLIP ViT"
+      - "clip encode image"
 
 ---
 
@@ -24,6 +38,15 @@ OpenAI's model that understands images from natural language.
 - Content moderation (detect NSFW, violence)
 - Visual question answering
 - Cross-modal retrieval (image→text, text→image)
+
+## Not For
+
+- **Generating image captions** → use `llava` or BLIP-2 for caption generation (CLIP is a classifier/retriever, not a generator)
+- **Image segmentation** → use `segment-anything-model` for precise image segmentation
+- **Video understanding** → CLIP processes static frames only; use dedicated video models for temporal tasks
+- **Fine-grained recognition (car models, dog breeds)** → CLIP's zero-shot performance degrades on fine-grained categories without fine-tuning
+- **Counting or spatial reasoning** → CLIP has no bounding boxes or spatial understanding; use object detection models (e.g., YOLO) instead
+- **Generating images from text** → use `stable-diffusion-image-generation` for text-to-image generation
 
 **Metrics**:
 - **25,300+ GitHub stars**
@@ -252,5 +275,30 @@ results = collection.query(
 - **Paper**: https://arxiv.org/abs/2103.00020
 - **Colab**: https://colab.research.google.com/github/openai/clip/
 - **License**: MIT
+
+## Pitfalls
+
+1. **Wrong install package name** — The PyPI package is `git+https://github.com/openai/CLIP.git`, NOT `pip install clip` (a different package). Using `pip install clip` installs a color palette library. Always install from the GitHub source.
+
+2. **Float16 dtype mismatch on CPU** — CLIP's ViT models default to float16 on CUDA but fall back to float32 on CPU. If you see `RuntimeError: expected scalar type Half but found Float`, explicitly set `model = model.float()` when running on CPU.
+
+3. **`clip.tokenize` truncates long text silently** — CLIP's tokenizer has a 77-token limit. Text beyond 77 tokens is silently truncated to 77. Verify prompt length before tokenizing: `len(clip.tokenize([text])[0].nonzero())`.
+
+4. **Embeddings not normalized before cosine similarity** — `model.encode_image()` and `model.encode_text()` return unnormalized embeddings. Using `@` (dot product) directly without normalization does NOT give cosine similarity — it gives a scaled inner product. Always normalize: `feat /= feat.norm(dim=-1, keepdim=True)`.
+
+5. **`import clip` fails after pip install** — The openai/CLIP repo installs as `clip` module but depends on `ftfy`, `regex`, `tqdm`. If those are missing, the import fails silently. Install with: `pip install git+https://github.com/openai/CLIP.git ftfy regex tqdm`.
+
+6. **Image preprocessing must use CLIP's own `preprocess` function** — CLIP requires a specific resize + center crop + normalization pipeline. Using `torchvision.transforms.ToTensor()` directly gives wrong results. Always use `model, preprocess = clip.load("ViT-B/32")` and apply `preprocess(image)`.
+
+7. **`logits_per_image.softmax(dim=-1)` doesn't give probabilities across multiple batches** — `softmax` over `dim=-1` normalizes across labels within each image. If you have multiple images, each row is a separate distribution. Misreading the matrix shape `(N_images, N_texts)` leads to incorrect ranking.
+
+8. **GPU OOM on large batches** — ViT-L/14 uses ~2GB VRAM just for the model weights. Processing 100 images simultaneously can OOM a 16GB GPU. Use `torch.utils.data.DataLoader` with `batch_size=16` and process in chunks.
+
+9. **Vague text labels degrade zero-shot accuracy** — CLIP performs poorly with ambiguous labels like "type 1" or "category A". Use descriptive natural language: "a photo of a dog sitting in a park" outperforms "dog". Ensemble multiple phrasings: `["a photo of a dog", "a dog", "a pet dog"]`.
+
+10. **`chromadb` incompatibility with `allow_dangerous_deserialization`** — When loading LangChain FAISS/CLIP index with `FAISS.load_local(..., allow_dangerous_deserialization=True)`, the flag is REQUIRED in LangChain ≥0.1.0 or you'll get a `ValueError: Cannot load index without allow_dangerous_deserialization=True`. Always pass the flag.
+
+11. **CLIP v1 (openai/CLIP) vs OpenCLIP** — The original `openai/CLIP` repo is not the same as `open-clip-torch` (OpenCLIP from LAION). They have different model names, loading APIs, and performance characteristics. Don't mix imports. For production, prefer `open-clip-torch` which supports newer ViT-H and ViT-bigG models.
+
 
 
