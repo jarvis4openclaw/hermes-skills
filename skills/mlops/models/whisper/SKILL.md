@@ -1,13 +1,27 @@
 ---
 name: whisper
 description: OpenAI's general-purpose speech recognition model. Supports 99 languages, transcription, translation to English, and language identification. Six model sizes from tiny (39M params) to large (1550M params). Use for speech-to-text, podcast transcription, or multilingual audio processing. Best for robust, multilingual ASR.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [openai-whisper, transformers, torch]
 metadata:
   hermes:
     tags: [Whisper, Speech Recognition, ASR, Multimodal, Multilingual, OpenAI, Speech-To-Text, Transcription, Translation, Audio Processing]
+    trigger_conditions:
+      - "transcribe audio"
+      - "speech to text"
+      - "transcribe this file"
+      - "transcribe podcast"
+      - "transcribe meeting"
+      - "openai whisper"
+      - "speech recognition"
+      - "audio to text"
+      - "transcribe mp3"
+      - "transcribe wav"
+      - "generate subtitles"
+      - "whisper transcription"
+      - "convert audio to text"
 
 ---
 
@@ -35,6 +49,16 @@ OpenAI's multilingual speech recognition model.
 - **AssemblyAI**: Managed API, speaker diarization
 - **Deepgram**: Real-time streaming ASR
 - **Google Speech-to-Text**: Cloud-based
+
+## Not For
+
+- **Real-time streaming transcription** → Whisper is batch-only; use `deepgram` or AssemblyAI for live speech
+- **Speaker diarization (who said what)** → Whisper has no speaker labels; use `pyannote-audio` or AssemblyAI
+- **Music/song transcription** → Whisper is for speech, not melody/chords; use `demucs` or `basic-pitch`
+- **Very long audio (>4 hours)** → memory usage grows with duration; split into chunks first
+- **Production serving at scale** → openai-whisper is for local use; use `serving-llms-vllm` or OpenAI API for production
+- **Offline/air-gapped environments** → models download on first load (~1.5GB for base); pre-download with `whisper.load_model("base", download_root="./models")`
+- **Live captioning with <1s latency** → Whisper processes in chunks; use `faster-whisper` with streaming or dedicated ASR APIs
 
 ## Quick start
 
@@ -260,18 +284,31 @@ ffmpeg -i video.mp4 -vn -acodec pcm_s16le audio.wav
 whisper audio.wav
 ```
 
-## Best practices
+## Pitfalls
 
-1. **Use turbo model** - Best speed/quality for English
-2. **Specify language** - Faster than auto-detect
-3. **Add initial prompt** - Improves technical terms
-4. **Use GPU** - 10-20× faster
-5. **Batch process** - More efficient
-6. **Convert to WAV** - Better compatibility
-7. **Split long audio** - <30 min chunks
-8. **Check language support** - Quality varies by language
-9. **Use faster-whisper** - 4× faster than openai-whisper
-10. **Monitor VRAM** - Scale model size to hardware
+1. **ffmpeg not installed** — `openai-whisper` silently fails or produces empty output when ffmpeg is missing. Always verify: `ffmpeg -version`. Install with `apt install ffmpeg` (Ubuntu), `brew install ffmpeg` (macOS), or `choco install ffmpeg` (Windows).
+
+2. **Model download blocks first call** — `whisper.load_model("base")` downloads ~1.5GB on first use with no progress bar. Fix: pre-download with `whisper.load_model("base", download_root="./models")` during setup, or use `faster-whisper` which streams the download.
+
+3. **GPU not used despite CUDA being available** — whisper auto-detects CUDA but may silently fall back to CPU if PyTorch wasn't built with CUDA support. Verify with `python -c "import torch; print(torch.cuda.is_available())"`. If False, install PyTorch with CUDA: `pip install torch --index-url https://download.pytorch.org/whl/cu118`.
+
+4. **Wrong model size for available VRAM** — Loading `large` (10GB VRAM) on a 4GB GPU crashes with CUDA OOM. Fix: match model to hardware — `tiny`/`base` for ≤2GB VRAM, `small`/`turbo` for 4-6GB, `medium`/`large` for 8GB+.
+
+5. **Long audio (>30 min) degrades quality** — Whisper's transformer attention span degrades on long-form audio. Fix: split into ≤30-minute chunks with ffmpeg: `ffmpeg -i long_audio.mp3 -f segment -segment_time 1800 -c copy chunk_%03d.mp3`.
+
+6. **Language auto-detection is wrong for multilingual audio** — Whisper may misidentify the language for short clips or code-switched speech. Fix: explicitly set `language=` parameter when you know the language. Use `whisper audio.mp3 --language ja` for known language, or check detection confidence with `result["language"]`.
+
+7. **Repeated phrase hallucination** — On silent or noisy segments, Whisper may repeat the last phrase ("Thank you. Thank you. Thank you…"). Fix: use `condition_on_previous_text=False` for long-form, or set `temperature=0` to reduce hallucination, or pre-process audio to remove silence.
+
+8. **Memory leak on batch processing** — Calling `model.transcribe()` in a loop without reloading can cause RAM to grow unboundedly. Fix: reload the model every 50-100 files, or use `faster-whisper` which has better memory management.
+
+9. **openai-whisper vs faster-whisper confusion** — `openai-whisper` (PyTorch) is the reference implementation; `faster-whisper` (CTranslate2) is 4× faster with same accuracy. If speed matters, install `pip install faster-whisper` and use `from faster_whisper import WhisperModel`.
+
+10. **Temperature fallback loops silently** — When `temperature=(0.0, 0.2, 0.4, 0.6, 0.8, 1.0)`, Whisper retries at higher temperatures on low confidence. This means a 30s clip can take 6× longer. Set `temperature=0` for deterministic output when speed matters.
+
+11. **Audio format not supported** — Whisper expects WAV or MP3; FLAC and OGG may work but M4A/AAC often fail silently. Fix: convert with ffmpeg first: `ffmpeg -i input.m4a -ar 16000 -ac 1 output.wav`.
+
+12. **Subtitle timing drift on long videos** — SRT/VTT timestamps can drift by seconds on >1hr content. Fix: use `--word_timestamps True` for more accurate per-word timing, or post-process with `aeneas` for forced alignment.
 
 ## Performance
 
@@ -299,15 +336,6 @@ Top-supported languages:
 - Chinese (zh)
 
 Full list: 99 languages total
-
-## Limitations
-
-1. **Hallucinations** - May repeat or invent text
-2. **Long-form accuracy** - Degrades on >30 min audio
-3. **Speaker identification** - No diarization
-4. **Accents** - Quality varies
-5. **Background noise** - Can affect accuracy
-6. **Real-time latency** - Not suitable for live captioning
 
 ## Resources
 

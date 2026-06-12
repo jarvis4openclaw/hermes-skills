@@ -1,7 +1,7 @@
 ---
 name: github-auth
 description: Set up GitHub authentication for the agent using git (universally available) or the gh CLI. Covers HTTPS tokens, SSH keys, credential helpers, and gh auth — with a detection flow to pick the right method automatically.
-version: 1.1.0
+version: 1.2.0
 author: Hermes Agent
 license: MIT
 metadata:
@@ -24,6 +24,27 @@ This skill sets up authentication so the agent can work with GitHub repositories
 
 - **`git` (always available)** — uses HTTPS personal access tokens or SSH keys
 - **`gh` CLI (if installed)** — richer GitHub API access with a simpler auth flow
+
+## When to Use
+
+- First-time GitHub setup on a new machine or container
+- `git push` fails with "Authentication failed" or "Permission denied"
+- `gh auth status` shows "not authenticated"
+- Setting up a Personal Access Token (PAT) for API access
+- Configuring SSH key authentication for passwordless git operations
+- Switching between multiple GitHub accounts on one machine
+- Extracting credentials from git's credential store for API scripts
+- Resolving expired token / stale credential issues
+
+## Not For
+
+- **Creating/managing GitHub repos** → use `github-repo-management` instead
+- **Submitting pull requests** → use `github-pr-workflow` instead
+- **Reviewing PRs** → use `github-code-review` instead
+- **Managing issues** → use `github-issues` instead
+- **Git workflow basics (commit, branch, merge)** → use git directly or `github-pr-workflow`
+- **GitHub Actions / CI configuration** → this is YAML-based; not auth-related
+- **OAuth app / GitHub App setup** → this skill covers personal auth only
 
 ## Detection Flow
 
