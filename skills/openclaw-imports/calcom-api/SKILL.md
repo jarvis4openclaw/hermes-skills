@@ -14,11 +14,45 @@ env:
   CAL_WEBHOOK_SECRET:
     description: "Secret used to verify webhook payload signatures via X-Cal-Signature-256 header."
     required: false
+version: 1.1.0
+metadata:
+  hermes:
+    trigger_conditions:
+      - "calcom api"
+      - "cal.com integration"
+      - "calendly api replacement"
+      - "booking api"
+      - "event type scheduling"
+      - "availability slots"
+      - "calcom webhook"
+      - "schedule meeting api"
+      - "create booking calcom"
+      - "check slots cal"
+      - "cal.com v2"
 ---
 
 # Cal.com API v2
 
 This skill provides guidance for AI agents to interact with the Cal.com API v2, enabling scheduling automation, booking management, and calendar integrations.
+
+## When to Use
+
+- Building an integration that needs to programmatically create, list, or cancel bookings
+- Checking real-time availability (slots) for an event type before presenting booking options
+- Setting up webhooks to receive real-time notifications for booking lifecycle events
+- Managing event type configurations (duration, location, availability rules) via API
+- Syncing calendars or retrieving busy times to avoid double-booking
+- Automating rescheduling workflows where a booking UID needs to be updated
+- Platform/OAuth integrations managing scheduling on behalf of multiple users
+
+## Not For
+
+- **Manual booking via a UI** → Cal.com has its own web interface; use the API only for programmatic access
+- **Google Calendar or Outlook sync** → use `google-workspace` for GCal or Cal.com's built-in calendar connections
+- **General-purpose HTTP API debugging** → use `systematic-debugging` for generic API troubleshooting
+- **Email scheduling workflows** → use `himalaya` for email-based scheduling or Cal.com's email notifications
+- **Payment/Stripe integration in bookings** → Cal.com handles payments natively; use only if extending custom payment flows
+- **Scheduling for services not on Cal.com** → this API is specific to Cal.com's infrastructure; use `notion` or `google-workspace` for other scheduling backends
 
 ## Base URL
 
@@ -132,6 +166,19 @@ See `references/webhooks.md` for available triggers and payload formats.
 3. Use ISO 8601 format for all timestamps
 4. Implement webhook handlers for real-time updates
 5. Handle rate limiting with exponential backoff
+
+## Pitfalls
+
+1. **Missing `CAL_API_KEY` env var returns 401 with misleading message** — Cal.com's API returns a generic "Unauthorized" without indicating which header is missing. Always verify the env var is set and matches the expected `cal_live_` or `cal_test_` prefix before making calls.
+2. **Wrong timezone in `attendee.timeZone` causes off-by-hours bookings** — If the attendee's timezone is omitted or wrong, Cal.com defaults to UTC, creating bookings at unexpected times. Always pass `timeZone` in IANA format (e.g., `"America/New_York"`, not `"EST"`).
+3. **Slot query without `eventTypeId` returns 400** — The `/v2/slots` endpoint requires `eventTypeId` as a query parameter. Omitting it or passing a string "123" instead of integer 123 returns a 400 without clear guidance.
+4. **Booking UID lost after creation** — The `uid` returned in the booking response (not the `id`) is required for cancel and reschedule operations. Store it immediately; the numeric `id` alone won't work for `/v2/bookings/{uid}/cancel`.
+5. **Webhook signature verification fails with raw body** — The `X-Cal-Signature-256` header is an HMAC-SHA256 of the raw request body. If your framework parses JSON before verification, the signature won't match. Buffer the raw body first, then parse.
+6. **Rate limiting returns 429 with `Retry-After` in seconds, not milliseconds** — Cal.com's rate limit headers use seconds. An exponential backoff starting at 1s, doubling to 8s max, handles most rate limit scenarios without burning retries on millisecond-scaled waits.
+7. **`eventTypeId` from the UI differs from API** — Event type IDs in the Cal.com dashboard URL may differ from the API-returned ID if the event type was duplicated or imported. Always fetch from `GET /v2/event-types` to get the authoritative API ID.
+8. **OAuth platform integrations need both `x-cal-client-id` and `x-cal-secret-key`** — Sending only the client ID without the secret key causes a 403 "Insufficient permissions" on user-scoped endpoints. Both headers are required for any `/v2/organizations/{orgId}/` or user-management call.
+9. **Booking with past `start` time returns 422** — Cal.com rejects bookings where `start` is in the past, even by seconds. Always validate `start > Date.now()` before POSTing, and include a buffer of at least 60 seconds for clock skew.
+10. **Pagination uses cursor-based tokens, not page numbers** — `GET /v2/bookings` returns a `nextCursor` string, not a `page` number. Passing `page=2` is silently ignored; use `cursor={nextCursor}` to paginate. The last page returns `nextCursor: null`.
 
 ## Additional Resources
 

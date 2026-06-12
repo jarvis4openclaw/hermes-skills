@@ -3,6 +3,7 @@ name: nostrx
 description: >
   Nostr-to-X/Twitter cross-poster. Monitors one or more Nostr npubs and syncs new text posts to Twitter/X via the Twitter API v2.
   Use when: (1) user reports posts not appearing on X, (2) X posts are truncated or missing content, (3) user wants to change which Nostr pubkeys are monitored, (4) nostrX service needs restart/update/debug.
+version: 1.1.0
 triggers:
   - "nostrX"
   - "nostr to twitter"
@@ -10,6 +11,19 @@ triggers:
   - "cross post to x"
   - "posts not appearing on twitter"
   - "x posts truncated"
+metadata:
+  hermes:
+    trigger_conditions:
+      - "nostrx"
+      - "nostr to twitter"
+      - "nostr to x"
+      - "cross post to x"
+      - "posts not appearing on twitter"
+      - "x posts truncated"
+      - "nostr cross poster"
+      - "sync nostr posts"
+      - "nostrx debug"
+      - "nostr bridge to x"
 ---
 
 # nostrX — Nostr → X/Twitter Sync
@@ -17,6 +31,25 @@ triggers:
 ## Overview
 
 `nostrx.py` is a Python sync tool running on **CT 202** (`192.168.100.54`). It monitors specified Nostr npubs and cross-posts new text posts to X/Twitter using the Twitter API v2 (via tweepy).
+
+## When to Use
+
+- Nostr posts are not appearing on X/Twitter as expected
+- X posts are truncated, missing content, or cut at 280 characters without threading
+- Need to change which Nostr pubkeys are monitored for cross-posting
+- nostrX service is down, throwing errors, or needs a restart after config changes
+- Debugging why specific posts didn't sync (checking `sync_state.json` or logs)
+- Setting up a new Nostr-to-X bridge for additional npubs
+- Investigating post frequency or rate-limiting issues between Nostr and X
+
+## Not For
+
+- **Posting directly to X/Twitter** → use `xitter` or `xurl` for direct X posting
+- **Posting to Nostr** → use `nostrx` (the Nostr CLI) for direct Nostr posting; nostrX only reads Nostr
+- **Signal + Nostr scheduling** → use `signal-scheduler` for scheduling posts to both Signal and Nostr
+- **Twitter/X account management (reading, DMs)** → use `xitter` for full X/Twitter account operations
+- **General debugging of CT 202 or Proxmox infrastructure** → use `proxmox-host-management` for host-level issues
+- **Bird CLI operations (likes, bookmarks)** → use `xitter` or `xurl` — the `bird` CLI on the host is read-only
 
 **Location:** `/root/nostrX/nostrx.py`
 **State file:** `/root/nostrX/sync_state.json`
@@ -103,6 +136,19 @@ Implemented via `post_thread()` method using Tweepy 4.16+ `create_tweet(in_reply
 ## References
 
 - `references/nostrx-py.md` — full source of nostrx.py with threading implementation (updated 2026-05-20)
+
+## Pitfalls
+
+1. **SSH to CT 202 times out without key** — `ssh root@192.168.100.54` requires SSH key auth. If key forwarding isn't set up, the connection fails silently. Verify with `ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@192.168.100.54 "hostname"` before running any nostrX commands.
+2. **`pkill -f nostrx.py` kills the wrong process** — Multiple Python scripts may match the pattern. Verify with `ps aux | grep nostrx.py` before killing, and use `pkill -f "python.*nostrx.py"` for a tighter match.
+3. **`.env` file on CT 202 may have stale Twitter API credentials** — Twitter API v2 keys expire or get rotated. If posts stopped syncing but the script runs without error, check if the access token expired with `ssh root@192.168.100.54 "grep TWITTER /root/nostrX/.env"`.
+4. **`sync_state.json` desync after manual posting** — If someone manually posts to X between nostrX runs, the state file doesn't know about it. The next run may skip a legitimate Nostr post if its event ID was already marked as synced. Clear the `last_synced_event` key to force a re-scan.
+5. **Nostr relay connection failures are silent** — nostrX connects to `wss://relay.damus.io` and others; if these go down, the script exits with code 0 but syncs nothing. Check `nostrx.log` for `"Failed to connect"` or `"0 new posts"` patterns.
+6. **Thread limit (25 tweets) silently drops content** — Twitter's API v2 limits threads to 25 tweets. If a Nostr post splits into >25 tweets, the excess content is lost without error. Verify post length before threading: `echo ${#clean_text}`.
+7. **Media upload fails on non-image attachments** — nostrX extracts image URLs but Twitter API v2 rejects videos >140s or unsupported formats. The post appears on X without media — check the Nostr post for video/gif URLs and handle separately.
+8. **Cron-triggered runs pile up if execution time > interval** — If a sync run takes 5 minutes and cron fires every 3 minutes, two instances race on `sync_state.json`. Add a lockfile (`flock`) or run interval ≥10 minutes.
+9. **Nostr npub format error silently skips all posts** — If `NOSTR_NPUBS` contains a malformed npub (missing prefix, wrong checksum), nostrX may skip all entries without per-npub error reporting. Validate with `nostril <npub>` before adding.
+10. **`source venv/bin/activate` fails in non-interactive SSH** — When running via `ssh root@... "source venv/bin/activate && python nostrx.py"`, the `source` may not persist. Use the venv Python directly: `ssh root@192.168.100.54 "/root/nostrX/venv/bin/python /root/nostrX/nostrx.py"`.
 
 ## Related Services
 

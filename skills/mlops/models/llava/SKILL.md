@@ -1,13 +1,27 @@
 ---
 name: llava
 description: Large Language and Vision Assistant. Enables visual instruction tuning and image-based conversations. Combines CLIP vision encoder with Vicuna/LLaMA language models. Supports multi-turn image chat, visual question answering, and instruction following. Use for vision-language chatbots or image understanding tasks. Best for conversational image analysis.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [transformers, torch, pillow]
 metadata:
   hermes:
     tags: [LLaVA, Vision-Language, Multimodal, Visual Question Answering, Image Chat, CLIP, Vicuna, Conversational AI, Instruction Tuning, VQA]
+    trigger_conditions:
+      - "use llava"
+      - "llava model"
+      - "vision language model"
+      - "multimodal image chat"
+      - "visual question answering"
+      - "image understanding"
+      - "llava chatbot"
+      - "llava inference"
+      - "llava training"
+      - "llava quantization"
+      - "run llava"
+      - "install llava"
+      - "setup llava"
 
 ---
 
@@ -15,27 +29,24 @@ metadata:
 
 Open-source vision-language model for conversational image understanding.
 
-## When to use LLaVA
+## When to Use
 
-**Use when:**
-- Building vision-language chatbots
-- Visual question answering (VQA)
-- Image description and captioning
-- Multi-turn image conversations
-- Visual instruction following
-- Document understanding with images
+- Building a vision-language chatbot that handles multi-turn image conversations
+- Implementing visual question answering (VQA) for user-uploaded images
+- Generating detailed image captions or descriptions programmatically
+- Setting up a Gradio web UI for interactive image chat demos
+- Document understanding tasks that combine text and image analysis
+- Evaluating multimodal model benchmarks (VQAv2, GQA, MMBench)
+- Fine-tuning a custom LLaVA model on domain-specific image-instruction data
 
-**Metrics**:
-- **23,000+ GitHub stars**
-- GPT-4V level capabilities (targeted)
-- Apache 2.0 License
-- Multiple model sizes (7B-34B params)
+## Not For
 
-**Use alternatives instead**:
-- **GPT-4V**: Highest quality, API-based
-- **CLIP**: Simple zero-shot classification
-- **BLIP-2**: Better for captioning only
-- **Flamingo**: Research, not open-source
+- **Simple zero-shot image classification** → use `clip` instead
+- **Pure text generation without images** → use standard LLM skills like `huggingface-hub` or `llama-cpp`
+- **Production image search/retrieval** → use `clip` or `chroma` with embeddings
+- **Real-time video understanding** → LLaVA is frame-based, not optimized for video streams
+- **Medical/safety-critical image analysis** → LLaVA hallucinates; not validated for clinical use
+- **CPU-only inference** → requires GPU; use API-based models like GPT-4V for CPU environments
 
 ## Quick start
 
@@ -295,6 +306,19 @@ demo = gr.ChatInterface(
 )
 demo.launch()
 ```
+
+## Pitfalls
+
+1. **GPU out of memory on 34B model** — The 34B model requires ~70 GB VRAM in FP16 which exceeds most single consumer GPUs. Always use 4-bit quantization (`load_4bit=True`) for models ≥13B unless you have an A100 80GB.
+2. **Tokenizer mismatch after model swap** — When switching between LLaVA versions (v1.5 vs v1.6), the tokenizer and conversation template change. Always call `load_pretrained_model()` with the correct `model_name` function; never reuse tokenizers cross-version.
+3. **Multi-GPU inference hangs without device map** — `load_pretrained_model()` defaults to CPU offloading when VRAM is insufficient, causing 10–100× slowdown. Explicitly pass `device_map="auto"` for multi-GPU setups.
+4. **Image preprocessing silently drops images** — `process_images()` expects PIL Images; passing file paths or numpy arrays returns a truncated tensor without error. Always open with `Image.open()` and verify tensor shape before inference.
+5. **Gradio server port conflict** — The default port 7860 may be in use by another Gradio app. Use `--server-port 7861` or `gradio_app.launch(server_port=7861)` to avoid silent failures.
+6. **Conversation state corruption in multi-turn** — Forgetting to update `conv.messages[-1][1]` with the assistant's actual response before the next user turn causes the model to see stale history. Always set the last assistant message before appending the next user message.
+7. **4-bit quantization reduces accuracy on small images** — Compressing a 7B model to 4-bit on images smaller than 224×224 loses fine-grained detail. For small images, use 8-bit or FP16 and resize images to at least 336×336.
+8. **Max_new_tokens too low truncates VQA** — Default `max_new_tokens=512` may cut off detailed descriptions for complex images. Bump to 1024 for document understanding or scene descriptions with multiple objects.
+9. **Temperature=0 causes degenerate repetition** — Unlike text-only LLMs, LLaVA can loop at temperature=0 on certain image-text combinations. Use `temperature=0.2` as the minimum safe value.
+10. **Batch processing without clearing CUDA cache** — Processing 20+ images sequentially without `torch.cuda.empty_cache()` between each accumulates GPU memory fragments. Insert `torch.cuda.empty_cache()` every 5–10 images.
 
 ## Resources
 

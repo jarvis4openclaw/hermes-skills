@@ -1,15 +1,41 @@
 ---
 name: cron-noninteractive-guardrails
 description: Prevent cron-run failures from non-TTY terminal usage. Use strict non-interactive command patterns, stop after primary check success, and avoid post-check helper commands that trigger ioctl/timeouts.
-version: 1.0.0
+version: 1.1.0
+metadata:
+  hermes:
+    trigger_conditions:
+      - "cron noninteractive"
+      - "inappropriate ioctl"
+      - "no job control in this shell"
+      - "cron timeout"
+      - "tty error in cron"
+      - "interactive in cron"
+      - "cron guardrails"
+      - "noninteractive guardrails"
+      - "cron shell error"
+      - "tcsetattr failed"
 ---
 
 # Cron Non-Interactive Guardrails
+## When to Use
 
-## Use when
-- Session source is cron/scheduled automation.
-- Task is a health check, keepalive, or single-command verification.
-- You see recurring errors like `Inappropriate ioctl for device`, `no job control in this shell`, or command timeouts after the main check already succeeded.
+- Running a cron job that performs health checks, keepalives, or single-command verification
+- Debugging recurring `Inappropriate ioctl for device` or `no job control in this shell` errors in cron output
+- Encountering command timeouts after the primary check already succeeded
+- Setting up new cron jobs and want to avoid TTY-dependent patterns from the start
+- A cron job is running extra post-success commands that trigger false alarms
+- Preventing `brv curate` from hanging due to `tcsetattr`/`ioctl` issues in cron
+- Writing Python HTTP scripts for cron where urllib hangs on IPv6
+
+## Not For
+
+- **Interactive debugging sessions** → cron guardrails don't apply; use `node-inspect-debugger` or `python-debugpy`
+- **Long-running background services (not cron-triggered)** → use `cron-model-optimization` for model selection, not guardrail patterns
+- **General shell scripting outside cron** → these patterns are cron-specific; use `systematic-debugging` for generic shell debugging
+- **CI/CD pipeline failures** → CI runners typically have PTY allocation; use `github-pr-workflow` or `github-code-review`
+- **Performance optimization of working scripts** → guardrails prevent failures, not optimize throughput
+- **Non-cron scheduled tasks (systemd timers, at jobs)** → these have different TTY behavior; verify before applying cron-specific patterns
 
 ## Core rule
 If the primary check succeeds and no issue is requested, **stop immediately** and return `[SILENT]` (or the required success format). Do not run extra context/cleanup commands.
@@ -65,10 +91,34 @@ This applies to cron scripts, detection scripts, and any Python code making outb
 See `references/openrouter-free-model-detection.md` for a complete example of this pattern — a cron-driven external API monitor that tracks new/expired free models with human-in-the-loop notifications.
 
 ## Tool-specific guardrail (ByteRover CLI)
-- In cron, run `brv curate` with `--detach` (and optionally `--format json`) to queue and exit cleanly.
-- Report queued `taskId` as proof of execution instead of waiting on interactive progress output.
-- **Binary path**: The brv CLI is at `/home/wahid/.npm-global/bin/brv` (NOT `~/.brv-cli/bin/brv`). Always use the full path in cron.
-- **Authentication required**: `brv curate` requires a connected provider. Run `brv login -k <api-key>` (get key at https://app.byterover.dev/settings/keys). Without it, curate fails with "No provider connected".
+
+### Binary path
+The brv CLI is at `/home/wahid/.npm-global/bin/brv` (NOT `~/.brv-cli/bin/brv`). Always use the full path in cron.
+
+### Authentication
+`brv curate` requires a connected provider. Without authentication, it fails with "No provider connected."
+
+**Setup (one-time, interactive):**
+```
+brv login -k <api-key>   # get key at https://app.byterover.dev/settings/keys
+```
+Or use a swarm provider:
+```
+brv swarm onboard    # then: brv swarm curate "<content>" --provider local-markdown:notes
+```
+
+### Runtime flag
+When auth IS configured, run `brv curate` with `--detach` (and optionally `--format json`) to queue and exit cleanly. Report queued `taskId` as proof of execution instead of waiting on interactive progress output.
+
+### Auth-blocker fallback (when brv can't authenticate in cron)
+When `brv login` hasn't been run and `brv swarm onboard` hasn't been set up, `brv curate` is blocked. **Do not abort the curation task.** Instead, write curated knowledge directly to the context tree filesystem:
+
+1. Create a category directory if needed: `mkdir -p ~/.brv/context-tree/<category>/`
+2. Write a well-formatted markdown file: `~/.brv/context-tree/<category>/<topic>-YYYY-MM-DD.md`
+3. Include: title, date, context, problem, root cause, fix, tags
+4. Log the auth gap and fallback action in `~/autonomy-gaps.md`
+
+This preserves the knowledge and makes it discoverable by the context tree system, even though it bypasses the AI-powered curation/routing that `brv curate` normally provides.
 
 ## Sync Script Deduplication
 Any scheduled sync that creates API resources must deduplicate by content key (title+date), not just sync state files. Sync state drifts — always verify against the live API. See `references/sync-script-dedup-pattern.md` for the full pattern and a real Notion→Outlook example.
@@ -77,3 +127,20 @@ Any scheduled sync that creates API resources must deduplicate by content key (t
 - Query sessions for: `"Inappropriate ioctl" OR "no job control" OR "timed out after"`.
 - Expect zero new matches in successful health-check runs.
 - Confirm successful checks end immediately after the primary command result.
+
+## Pitfalls
+
+1. **Foreground `terminate` after success triggers ioctl** — Calling any tool after the primary check succeeds can pull in shell initialization that tries to allocate a TTY. If the main check passes, return immediately — no follow-up tools, no cleanup, no status echo.
+2. **`source ~/.hermes/.env` exports masked stubs, not real keys** — The `.env` file's credential-manager-backed keys appear as `***` when sourced, so subprocesses get a 5-char stub instead of the real key. Always use a dedicated plaintext creds file (`evolution-creds.env`) or pass keys via cron job env vars in `jobs.yaml`.
+3. **`brv curate` without `--detach` hangs on tcsetattr** — The `brv` CLI tries to allocate a TTY for interactive progress even when there's no terminal. Always pass `--detach --format json` and report the returned `taskId` instead of waiting for output.
+4. **`bash -i` or interactive flags in cron scripts** — Any shell flag that requests job control (`-i`, `-l`) will fail with `no job control in this shell`. Use `#!/bin/bash` without interactive flags and avoid `set -m`.
+5. **Python `urllib.request` hangs on IPv6 in cron environments** — The standard library tries IPv6 first and hangs if the network silently drops IPv6. Replace with `subprocess.run(["curl", ...])` which handles dual-stack fallback correctly, or monkey-patch `socket.getaddrinfo` to force AF_INET.
+6. **Post-success logging that uses `tee` or pipes** — Piping through `tee` or `| while read` in a script can create subshells that exit early or hang in cron. Log directly to files with `>>` redirection or use `script -c` with `-q` for capturing output.
+7. **`terminal(pt=true)` on cron jobs that don't need it** — PTY mode forces a pseudo-terminal allocation that can trigger TTY-dependent code paths in tools like `brv`. Only use `pt=true` when genuinely needed (interactive CLIs that refuse to run without a TTY).
+8. **Long-running checks that don't set `timeout`** — Cron jobs default to a 180s timeout in Hermes but some API calls (OpenRouter IPv6 hang) can exceed this. Always set explicit `timeout` on terminal calls and use `--connect-timeout 15 --max-time 30` for curl calls.
+9. **`gh auth` interactive prompts in cron** — GitHub CLI's auth flow requires a browser or TTY. If a cron job tries `gh auth login`, it will hang waiting for input. Pre-authenticate with `gh auth setup-git` once, then rely on the stored token.
+10. **Mixing cron guardrails with `cron-model-optimization`** — The model optimization skill handles provider/model selection for cost efficiency; the guardrails skill handles non-TTY execution patterns. Confusing the two leads to running a cheap local model with an interactive TTY flag, defeating both.
+
+## Related Skills
+
+- **cron-model-optimization** — Prevent cron jobs from burning expensive API credits on trivial tasks by pinning model/provider overrides. Use local Ollama for bash-script keepalive jobs instead of manifest.build tiered auto-routing.

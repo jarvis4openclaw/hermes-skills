@@ -1,13 +1,24 @@
 ---
 name: simpo-training
 description: Simple Preference Optimization for LLM alignment. Reference-free alternative to DPO with better performance (+6.4 points on AlpacaEval 2.0). No reference model needed, more efficient than DPO. Use for preference alignment when want simpler, faster training than DPO/PPO.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [torch, transformers, datasets, trl, accelerate]
 metadata:
   hermes:
     tags: [Post-Training, SimPO, Preference Optimization, Alignment, DPO Alternative, Reference-Free, LLM Alignment, Efficient Training]
+    trigger_conditions:
+      - "simpo training"
+      - "simple preference optimization"
+      - "reference-free alignment"
+      - "dpo alternative"
+      - "simpo config"
+      - "simpo hyperparameters"
+      - "train with simpo"
+      - "preference optimization training"
+      - "align llm with simpo"
+      - "simpo vs dpo"
 
 ---
 
@@ -17,7 +28,26 @@ metadata:
 
 SimPO is a reference-free preference optimization method that outperforms DPO without needing a reference model.
 
-**Installation**:
+## When to Use
+
+- Training an LLM with preference data (chosen/rejected pairs) on a single node
+- Need better performance than DPO but want simpler setup (no reference model required)
+- Alignment training with limited compute — SimPO uses 40% less VRAM than DPO
+- Fine-tuning instruct models while preserving base capabilities (use `sft_weight`)
+- Reasoning-heavy alignment (math, code) where lower learning rates help stability
+- Quick A/B comparison: run SimPO first, DPO second — SimPO converges in fewer steps
+- Training from base models (Mistral, Llama, DeepSeek) on preference datasets
+
+## Not For
+
+- **Multi-node distributed training** → use `openrlhf` or `trl` with Ray
+- **Need multiple RL methods in one framework** → use `trl` (SFT, DPO, PPO, GRPO all in one)
+- **Established DPO baseline comparison papers** → use `fine-tuning-with-trl` for canonical DPO
+- **Online RL with reward model** → use `grpo-rl-training` or `trl` with PPO
+- **RL with no preference dataset (pure exploration)** → use `grpo-rl-training` instead
+- **SFT-only fine-tuning without preference data** → use `axolotl` or `unsloth`
+
+## Quick start
 ```bash
 # Create environment
 conda create -n simpo python=3.10 && conda activate simpo
@@ -126,67 +156,7 @@ per_device_train_batch_size: 1
 gradient_accumulation_steps: 16
 ```
 
-## When to use vs alternatives
-
-**Use SimPO when**:
-- Want simpler training than DPO (no reference model)
-- Have preference data (chosen/rejected pairs)
-- Need better performance than DPO
-- Limited compute resources
-- Single-node training sufficient
-
-**Algorithm selection**:
-- **SimPO**: Simplest, best performance, no reference model
-- **DPO**: Need reference model baseline, more conservative
-- **PPO**: Maximum control, need reward model, complex setup
-- **GRPO**: Memory-efficient RL, no critic
-
-**Use alternatives instead**:
-- **OpenRLHF**: Multi-node distributed training, PPO/GRPO
-- **TRL**: Need multiple methods in one framework
-- **DPO**: Established baseline comparison
-
-## Common issues
-
-**Issue: Loss divergence**
-
-Reduce learning rate:
-```yaml
-learning_rate: 3e-7  # Reduce from 5e-7
-```
-
-Reduce beta:
-```yaml
-beta: 1.0  # Reduce from 2.0
-```
-
-**Issue: Model forgets capabilities**
-
-Add SFT regularization:
-```yaml
-sft_weight: 0.1  # Add SFT loss component
-```
-
-**Issue: Poor preference separation**
-
-Increase beta and margin:
-```yaml
-beta: 5.0            # Increase from 2.0
-gamma_beta_ratio: 0.8  # Increase from 0.5
-```
-
-**Issue: OOM during training**
-
-Reduce batch size:
-```yaml
-per_device_train_batch_size: 1
-gradient_accumulation_steps: 16  # Maintain effective batch
-```
-
-Enable gradient checkpointing:
-```yaml
-gradient_checkpointing: true
-```
+### Workflow 3: Reasoning-intensive tasks (lower LR)
 
 ## Advanced topics
 
@@ -210,6 +180,19 @@ gradient_checkpointing: true
 - DeepSpeed ZeRO-3 (default config)
 - Gradient checkpointing
 - Flash Attention 2
+
+## Pitfalls
+
+1. **Loss divergence with `loss_type: hinge` on small datasets** — The hinge loss is brittle with <5K preference pairs. Start with `loss_type: sigmoid` and only switch to hinge when you have 10K+ pairs with clear chosen/rejected separation.
+2. **Gamma/beta ratio >0.8 destroys preference signal** — High `gamma_beta_ratio` values force the margin too aggressively, causing the model to assign equal probabilities to chosen and rejected responses. Keep `gamma_beta_ratio` between 0.3–0.7.
+3. **Learning rate >1e-6 causes immediate collapse** — SimPO is sensitive to learning rate due to the reference-free objective. Start at `3e-7` for 7B models and never exceed `1e-6`. Monitor loss in the first 10 steps — if it spikes, halve the LR.
+4. **Forgetting to set `torch_dtype: bfloat16` wastes 2× VRAM** — The alignment-handbook configs default to float32 if `torch_dtype` is missing. Always include `torch_dtype: bfloat16` in your training config to match the model's native precision.
+5. **Flash Attention 2 not installed causes silent 3× slowdown** — The training script runs without Flash Attention but at 3× longer per step. Verify with `python -c "import flash_attn; print(flash_attn.__version__)"` before launching training.
+6. **Dataset splits missing `train_prefs` key** — The alignment-handbook expects `dataset_splits: [train_prefs, test_prefs]`. Using `train` instead of `train_prefs` returns empty tensors without a clear error — the run appears to start but trains on nothing.
+7. **`sft_weight` too high (>0.3) negates preference optimization** — `sft_weight` adds an SFT loss term that can dominate the SimPO loss. For instruct models, use 0.05–0.15; for base models, use 0.0. Values above 0.2 effectively turn SimPO into expensive SFT.
+8. **DeepSpeed ZeRO-3 config path is relative to alignment-handbook root** — The `accelerate_configs/deepspeed_zero3.yaml` must exist in the `alignment-handbook/` directory. If you cloned the repo to a different path, either `cd` into it or use an absolute path for `--config_file`.
+9. **OOM even with ZeRO-3 on single A100 40GB for 8B models** — ZeRO-3 alone doesn't fit 8B models on 40GB cards with batch_size=2. Reduce to `per_device_train_batch_size: 1` and increase `gradient_accumulation_steps` to compensate.
+10. **Training appears to complete but model outputs gibberish** — The alignment-handbook's `run_simpo.py` saves checkpoints in `output_dir/checkpoint-<N>/`. If you load the untrained base model instead of the checkpoint, outputs will be random. Always load from `output_dir/<run_name>/checkpoint-<final>/`.
 
 ## Resources
 
