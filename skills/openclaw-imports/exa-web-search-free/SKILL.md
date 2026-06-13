@@ -1,10 +1,46 @@
 ---
 name: exa-web-search-free
 description: Free AI search via Exa MCP. Web search for news/info, code search for docs/examples from GitHub/StackOverflow, company research for business intel. No API key needed.
-metadata: {"clawdbot":{"emoji":"🔍","requires":{"bins":["mcporter"]}}}
+version: 1.1.0
+metadata:
+  hermes:
+    tags: [exa, web-search, free, neural-search, code-search, company-research]
+    trigger_conditions:
+      - "exa search"
+      - "search with exa"
+      - "free web search"
+      - "exa web search"
+      - "exa code search"
+      - "get code context exa"
+      - "company research exa"
+      - "search without API key"
+      - "exa MCP"
+      - "exa-free"
+      - "mcporter exa"
+      - "neural search"
+      - "use exa"
 ---
 
 # Exa Web Search (Free)
+
+## When to Use
+
+- Searching the web for current info, news, or facts without an API key
+- Finding code examples or documentation from GitHub or Stack Overflow
+- Researching companies for business intelligence or competitive analysis
+- Need neural/semantic search (understands meaning, not just keywords)
+- Quick fact-checking without setting up a search API account
+- When `web_search` results are insufficient and you need alternative coverage
+- Searching for professional profiles or people (with the full toolset enabled)
+
+## Not For
+
+- Broad web search with many results → use `web_search` or `web_search_plus`
+- Extracting full page content from URLs → use `web_extract` or `web_extract_plus`
+- Domain reconnaissance or subdomain enumeration → use `domain-intel`
+- Searching within local files or notes → use `search_files` or `lightrag`
+- Session-specific recall (what was just said) → use `session_search`
+- Academic paper discovery → use `huggingface-hub` or `web_search_plus` with arxiv filter
 
 Neural search for web, code, and company research. No API key required.
 
@@ -73,11 +109,27 @@ mcporter config add exa-full "https://mcp.exa.ai/mcp?tools=web_search_exa,web_se
 mcporter call 'exa-full.deep_search_exa(query: "AI safety research")'
 ```
 
-## Tips
+## Pitfalls
 
-- Web: Use `type: "fast"` for quick lookup, `"deep"` for thorough research
-- Code: Lower `tokensNum` (1000-2000) for focused, higher (5000+) for comprehensive
-- See [examples.md](references/examples.md) for more patterns
+1. **mcporter not installed or exa server not configured** — The most common failure: `mcporter list exa` returns nothing. Recovery: `mcporter config add exa https://mcp.exa.ai/mcp`, then verify with `mcporter list exa --schema`.
+
+2. **mcporter call fails with "server not found"** — The server name doesn't match what's in `mcporter list`. Recovery: run `mcporter list` to see exact server names; use the exact name (case-sensitive).
+
+3. **web_search_exa returns few or no results with `type: "fast"`** — Fast mode trades thoroughness for speed; some queries need deeper search. Recovery: use `type: "deep"` for comprehensive results; increase `numResults`.
+
+4. **get_code_context_exa tokensNum too low, missing important snippets** — Default 5000 tokens may return fragments without full context. Recovery: increase `tokensNum` to 10000–20000 for complex code queries; reduce to 1000–2000 for focused lookups.
+
+5. **company_research_exa returns unrelated companies with ambiguous names** — Neural search may match similar-sounding companies. Recovery: add location or industry context (e.g., `"Anthropic AI company"`); use `numResults: 3` for targeted results.
+
+6. **mcporter daemon conflicts with existing MCP servers** — The daemon binds ports that may conflict. Recovery: `mcporter daemon stop` if conflicts occur; run ad-hoc commands instead with `--http-url` or `--stdio`.
+
+7. **Advanced tools not available (deep_search, crawling, people_search)** — Only the basic 3 tools are available with the default exa config URL. Recovery: re-add with the full `?tools=` URL string (see Advanced Tools section) to enable all 9 tools.
+
+8. **JSON output (`--output json`) contains escaped quotes that break parsing** — mcporter's JSON output may contain nested escaped strings. Recovery: pipe through `python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin),indent=2))"` for clean output.
+
+9. **OAuth auth flow hangs without pty** — `mcporter auth` opens a browser for OAuth which requires interactive terminal. Recovery: use `terminal(command="mcporter auth <server>", pty=true)` for interactive flows.
+
+10. **Mixed content when query language is non-English** — Exa's neural search optimizes for English; Chinese/Japanese/Korean queries may return fewer relevant results. Recovery: include an English translation alongside the non-English query for better coverage.
 
 ## Resources
 

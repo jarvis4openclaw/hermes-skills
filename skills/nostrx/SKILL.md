@@ -5,7 +5,24 @@ description: >
   and posts them to X as a thread (if > 280 chars) with the Nostr link appended.
   Use when: user asks about nostrX status, X cross-posting fails, or wants to monitor
   the Nostr→X sync. The service runs on Proxmox CT 202 (192.168.100.54), not locally.
+version: 1.1.0
 tags: nostr, twitter, x, cross-post, sync, social
+metadata:
+  hermes:
+    tags: [nostr, twitter, x, cross-post, sync, social]
+    trigger_conditions:
+      - "nostrX"
+      - "nostr cross-poster"
+      - "Nostr to X sync"
+      - "Nostr cross-posting failed"
+      - "check nostrx status"
+      - "force Nostr→X sync"
+      - "nostrx is not posting"
+      - "tweets not appearing from nostr"
+      - "debug nostr cross-poster"
+      - "nostrx log"
+      - "reset nostrx sync state"
+      - "nostrx Proxmox CT"
 ---
 
 # nostrX — Nostr to X Cross-Poster
@@ -17,6 +34,25 @@ nostrX watches your Nostr posts and automatically syncs them to X (@wahiddotmy).
 **Two monitored npubs:**
 - `npub1l5khqwq3hyw2q9698zj4ujvuxapmldjmtlrnvmq472553wmhg5wq9y8emr` (Jarvis/agent)
 - `npub156spnmrgn4av0y6qkw3mjhlar0jpwe3ytmmu0guuxx66qsy5g8xqhzkzcm` (wahiddotmy)
+
+## When to Use
+
+- nostrX stopped cross-posting and posts aren't appearing on X
+- Need to check sync state or recent nostrX run logs
+- Force a manual Nostr→X sync outside the cron schedule
+- Debug why specific Nostr posts were skipped (replies, dedup)
+- Verify threading behavior for long Nostr posts (280+ chars)
+- Reset sync state after clock drift or state corruption
+- Check which Proxmox CT is running the nostrX service
+
+## Not For
+
+- Posting directly to Nostr from Hermes → use `nostr` nostr-cli
+- Posting directly to X/Twitter → use `xitter` or `xurl` 
+- General social media scheduling → use `signal-scheduler`
+- Modifying the nostrX Python script itself → SSH + manual editing on CT 202
+- Nostr relay management or key generation → use `nostr` nostr-cli
+- Monitoring X/Twitter mentions or DMs → use `xurl` or `xitter`
 
 ## Files & Locations
 
@@ -73,27 +109,27 @@ Configured relays (`.env`):
 - `wss://nos.lol`
 - `wss://relay.nostr.band`
 
-## Troubleshooting
+## Pitfalls
 
-### "No new posts found" every run
-- Check `sync_state.json` — `last_synced_timestamp` may be too old or stuck
-- Force a fresh sync by resetting the timestamp:
-  ```bash
-  ssh root@192.168.100.54 "python3 -c 'import json; s=json.load(open(\"/root/nostrX/sync_state.json\")); s[\"last_synced_timestamp\"]=int(__import__(\"time\").time())-86400; json.dump(s,open(\"/root/nostrX/sync_state.json\",\"w\"),indent=2)'"
-  ```
+1. **"No new posts found" every run but posts exist on Nostr** — `sync_state.json` has a stale `last_synced_timestamp`. Recovery: reset the timestamp back 24h: `ssh root@192.168.100.54 "python3 -c 'import json,time; s=json.load(open(\"/root/nostrX/sync_state.json\")); s[\"last_synced_timestamp\"]=int(time.time())-86400; json.dump(s,open(\"/root/nostrX/sync_state.json\",\"w\"),indent=2)'"`
 
-### Posts not appearing on X
-- Check log for errors: `tail /root/nostrX/nostrx.log`
-- Verify Twitter credentials are still valid (monthly rate limit: 500 posts)
-- Check if post was filtered as a reply
+2. **Posts not appearing on X with no error in log** — Twitter API rate limit hit (500 posts/month, 10 posts/day on free tier). Tweepy throws 403 which the script catches silently. Recovery: check `grep "403\|429\|Rate limit" /root/nostrX/nostrx.log`; wait for rate window reset.
 
-### Media upload failing
-- Usually a network timeout downloading from Blossom/CDN
-- Script logs `❌ Failed to download media` — post goes out text-only
+3. **Replies/directed posts not cross-posting** — By design, nostrX skips any post with `e` or `reply` tags. Recovery: not a bug — replies are excluded. Direct-post (root note) to trigger cross-posting.
 
-### Script runs but tweets fail
-- Twitter API v2 free tier: 500 posts/month, 10 posts/day
-- If rate limited, tweepy throws a 403 — script skips that post and retries next cycle
+4. **Media upload failing with "Failed to download media"** — Network timeout downloading from Blossom CDN or relay. The post goes out text-only. Recovery: check network from CT 202 (`ping relay.wahid.my`); re-post after CDN recovers.
+
+5. **Twitter API credentials expired or invalid** — X API v2 tokens rotate or get revoked. Script fails silently with auth error. Recovery: `ssh root@192.168.100.54 "grep -i 'auth\|token\|401\|403' /root/nostrX/nostrx.log"`; regenerate tokens in X Developer Portal; update `.env`.
+
+6. **CT 202 unreachable via SSH** — Proxmox CT 202 might be stopped or networking broken. Recovery: check Proxmox web UI first; `ping 192.168.100.54`; if down, start the CT from Proxmox.
+
+7. **sync_state.json corruption from concurrent runs** — If two nostrX processes run simultaneously (cron overlap), state file gets corrupted. Recovery: `ssh root@192.168.100.54 "rm /root/nostrX/sync_state.json"`; next run reconstructs from scratch.
+
+8. **Nostr relays unreachable, leading to empty fetch** — When primary relay (`relay.wahid.my`) is down, nostrX may fall back to public relays that don't have the relevant posts. Recovery: check relay status; verify relay list in `.env` is current.
+
+9. **Threading fails for posts near 280-char boundary** — The split logic uses hard ~275 character chunks; emoji or Unicode chars may cause mis-splits. Recovery: keep Nostr posts under 260 chars for clean threading, or above 280 to trigger thread but below 275 per chunk.
+
+10. **Cron isn't triggering but manual run works** — CT 202's cron daemon may be stopped or the crontab entry may be malformed. Recovery: `ssh root@192.168.100.54 "systemctl status cron"` and `crontab -l` to verify the `*/10` entry exists.
 
 ## Configuration
 

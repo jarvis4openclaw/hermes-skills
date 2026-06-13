@@ -7,9 +7,41 @@ metadata:
   hermes:
     tags: [yuanbao, mention, at, group, members, 元宝, 派, 艾特]
     related_skills: []
+    trigger_conditions:
+      - "yuanbao"
+      - "元宝 group"
+      - "元宝 派"
+      - "@mention yuanbao"
+      - "艾特 someone in yuanbao"
+      - "yuanbao DM"
+      - "yuanbao 私信"
+      - "send DM on yuanbao"
+      - "query group members yuanbao"
+      - "find user in yuanbao group"
+      - "yuanbao group info"
+      - "yb_query"
+      - "yb_send_dm"
 ---
 
 # Yuanbao Group Interaction
+
+## When to Use
+
+- Someone asks to @mention (艾特) a user in a Yuanbao group
+- Need to send a private message (私信/DM) to a Yuanbao group member
+- Looking up group info (name, owner, member count) in Yuanbao
+- Finding a specific user's nickname for an @mention
+- Listing bots or all members in a Yuanbao group
+- Any interaction that starts with "yb_" tool prefix
+
+## Not For
+
+- Discord or Telegram chat operations → use Discord/Telegram native tools
+- General social media monitoring → use `nostrx` or `xitter`
+- Scheduling messages for later delivery → use `signal-scheduler`
+- Nostr-related operations → use `nostr` nostr-cli
+- Yuanbao web/API outside group chat → the skill only handles group interactions via gateway
+- Voice or audio operations → use `text_to_speech`
 
 ## CRITICAL: How Messaging Works
 
@@ -100,6 +132,28 @@ yb_query_group_info({ "group_code": "328306697" })
 | `find` | Search by name (partial match, case-insensitive) |
 | `list_bots` | List bots and Yuanbao AI assistants |
 | `list_all` | List all members |
+
+## Pitfalls
+
+1. **Forgetting to call `yb_query_group_members` before @mentioning** — The biggest mistake: typing `@nickname` without first looking up the exact nickname. Nicknames in Yuanbao can have special characters or differ from display names. Recovery: always call `yb_query_group_members` with `mention=true` first.
+
+2. **Using wrong group_code — it comes from chat_id, not guessing** — The `group_code` is extracted from the current chat's `chat_id` field (e.g., `group:328306697` → `328306697`). Don't guess or hardcode group codes. Recovery: read `chat_id` from the conversation context.
+
+3. **Adding unnecessary disclaimers about @mention capability** — The gateway handles @mention conversion automatically. Don't say "I can't send messages" or "I don't have permission" — these statements confuse users and are factually wrong. Recovery: just include `@nickname` in your reply text.
+
+4. **Media files in DM with wrong file format** — `yb_send_dm` supports `.jpg/.png/.gif/.webp/.bmp` as image messages and everything else as documents. Unsupported formats silently skip. Recovery: check the file extension; convert with ImageMagick if needed.
+
+5. **Multiple users match the find query** — `yb_query_group_members(action="find")` returns all partial matches when the name is ambiguous. The tool returns candidates rather than picking arbitrarily. Recovery: ask the user to clarify which member they meant.
+
+6. **Confusing `send_message` with `yb_send_dm`** — `send_message` is a Hermes internal tool for cross-channel delivery. Yuanbao DMs require `yb_send_dm` specifically. Recovery: use `yb_send_dm` for Yuanbao private messages; `send_message` for everything else.
+
+7. **Group member list is empty or incomplete** — Yuanbao may paginate or cache member lists. If `list_all` returns fewer members than expected, the cache may be stale. Recovery: re-query; the gateway refreshes periodically.
+
+8. **Accidental @mention of the wrong user** — Partial name matches can resolve to unexpected users. Recovery: double-check the nickname returned by `find` before including it in your reply.
+
+9. **DM fails because user_id is unknown but name is correct** — The `yb_send_dm` tool resolves names to user_ids via the group member list. If the user recently joined, the member cache may not include them yet. Recovery: wait for cache refresh; or use `user_id` directly if known.
+
+10. **Reply contains instructions instead of performing the action** — The entire skill ethos is "just do it." Don't tell the user to use @mention themselves — include the @mention in your reply. Don't describe how DM works — call `yb_send_dm` directly.
 
 ## Notes
 
