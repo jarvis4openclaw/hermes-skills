@@ -1,7 +1,24 @@
 ---
 name: lightrag
 description: Query the LightRAG knowledge graph for past decisions, infrastructure, projects, and lessons learned. Use before saying "I don't remember."
----
+version: 1.1.0
+metadata:
+  hermes:
+    tags: [lightrag, knowledge-graph, RAG, retrieval, memory]
+    trigger_conditions:
+      - "lightrag"
+      - "LightRAG"
+      - "knowledge graph"
+      - "search past decisions"
+      - "what do we know about"
+      - "query the knowledge graph"
+      - "past projects"
+      - "lessons learned"
+      - "infrastructure query"
+      - "lightrag server"
+      - "start lightrag"
+      - "lightrag search"
+      - "reindex knowledge"
 
 # LightRAG Knowledge Graph
 
@@ -12,6 +29,16 @@ Query the LightRAG knowledge graph for past decisions, infrastructure, projects,
 - Need context on projects, hardware, or configurations
 - Remembering lessons learned or past issues
 - Any question where you'd say "I don't remember" — use this FIRST
+
+## Not For
+
+- Real-time data or live system state → use `terminal` or API health checks
+- General web research about topics not in the knowledge graph → use `web_search`
+- Session-specific context (what was just said in this chat) → use `session_search` instead
+- Storing new knowledge or lessons → ingestion happens via document import, not on-the-fly
+- Structured database queries (SQL) → the graph stores documents/entities, not tabular data
+- URL or domain lookups → use `domain-intel` or `web_extract`
+- Email or calendar queries → use `himalaya` or `google-workspace`
 
 # Starting the service
 The service can be started in the background using: nohup lightrag-server --port 9623 > ~/.hermes/lightrag/server.log 2>&1 &
@@ -35,84 +62,24 @@ curl -s -X POST http://localhost:9623/query \
 - Results supersede general knowledge about the setup
 - Reference entity names when citing results
 
+## Pitfalls
 
-### Query from a Script
+1. **Server not running — "Connection refused" on query** — The most common failure. The LightRAG server process dies without notice. Recovery: `cd ~/.hermes/lightrag/LightRAG && nohup lightrag-server --port 9623 > ~/.hermes/lightrag/server.log 2>&1 &` to restart.
 
-Create `~/.hermes/skills/research/lightrag/scripts/lightrag_search.py`:
+2. **Slow ingestion when entity extraction overwhelms the LLM** — Large document batches trigger extensive entity extraction, causing 30+ second processing per document. Recovery: use a faster model (Cerebras + Qwen 3 is fastest) or process documents in parallel batches.
 
-```python
-#!/usr/bin/env python3
-"""LightRAG search script for Hermes skill integration."""
-import json
-import sys
-import urllib.request
+3. **Empty or irrelevant query results** — The default `hybrid` mode may miss very specific facts. Recovery: try different query modes — `local` for specific entities, `global` for relationships, `hybrid` for general questions. Rephrase queries to be more entity-specific.
 
-def search(query: str, mode: str = "hybrid") -> str:
-    url = "http://localhost:9623/query"
-    payload = json.dumps({
-        "query": query,
-        "mode": mode,
-        "only_need_context": True
-    }).encode()
-    
-    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read())
-            return result.get("response", result.get("data", str(result)))
-    except Exception as e:
-        return f"LightRAG query failed: {e}"
+4. **Embedding model not running but server starts** — LightRAG starts without errors even when the embedding model (Ollama) is down. Queries return empty results with no error message. Recovery: `curl -s http://localhost:11434/api/tags | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('models',[])));"` to verify Ollama has models loaded.
 
-if __name__ == "__main__":
-    query = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else ""
-    if not query:
-        print("Usage: lightrag_search.py <query>")
-        sys.exit(1)
-    print(search(query))
-```
+5. **Duplicate entities after re-ingestion** — LightRAG auto-merges similar entities, but exact duplicates from re-ingesting the same documents can accumulate. Recovery: use the Web UI at `http://localhost:9623/webui` to manually clean up, or nuclear option: `rm -rf ~/.hermes/lightrag/LightRAG/rag_storage/*` and reingest.
 
-## Reindex After Bulk Changes
-After ingesting a large batch of new documents:
+6. **Port 9623 conflict with other services** — The default port may conflict with other local services. Recovery: `ss -tlnp | grep 9623` to check; use `--port <alt>` to change.
 
-### Check entity count
-curl http://localhost:9623/graph/label/list | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'{len(d)} entities')"
+7. **Default `hybrid` mode is not always optimal** — Using `hybrid` for every query is wrong. `local` mode targets specific entities (names, projects), `global` reveals relationships and patterns, `hybrid` balances both. Recovery: match the mode to the query type.
 
-## Use the Right Query Mode
-Don't always default to hybrid. Use:
+8. **Reindex after large batch imports is required** — After ingesting 50+ documents, the entity graph may be stale. Recovery: check entity count with `curl http://localhost:9623/graph/label/list | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'{len(d)} entities')"`, then trigger a reindex.
 
-- local when asking about a specific thing ("Tell me about the GPU setup")
-- global when asking about connections ("How do the projects relate?")
-- hybrid for general questions ("What decisions were made last week?")
+9. **Server log fills disk silently** — `nohup` redirects all output to `server.log` which can grow to GBs over weeks. Recovery: check log size with `du -h ~/.hermes/lightrag/server.log`, and rotate periodically.
 
-## Monitor and Prune
-The Web UI at http://localhost:9623/webui lets you:
-
-- Browse the knowledge graph visually
-- See entity relationships
-- Identify orphaned or redundant entities
-
-## Troubleshooting
-### "Connection refused" on query
-The server isn't running. Start it:
-
-cd ~/.hermes/lightrag/LightRAG && lightrag-server --port 9623
-
-### Slow ingestion
-Entity extraction is LLM-bound. Speed it up:
-
-- Use a faster model for ingestion (Cerebras + Qwen 3 is the fastest option, or Kimi 2.5)
-- Process documents in parallel batches
-- Use a local model if you have GPU capacity
-
-### Empty or irrelevant results
-- Check that documents were actually ingested (Web UI → entities)
-- Try different query modes (local vs global vs hybrid)
-- Rephrase your query — be more specific about entities
-- Check embedding model is actually running (curl http://localhost:11434/api/tags for Ollama)
-
-### Duplicate entities after re-ingestion
-LightRAG merges similar entities automatically, but exact duplicates can happen. Use the Web UI to manually clean up, or reindex from scratch:
-
-#### Nuclear option: wipe and reingest
-rm -rf ~/.hermes/lightrag/LightRAG/rag_storage/*
-#### Then re-ingest your documents
+10. **Settings in `.env` override CLI flags** — The LightRAG directory's `.env` file configures the LLM and embedding model. CLI flags like `--port` are respected, but model settings always come from `.env`. Recovery: edit `~/.hermes/lightrag/LightRAG/.env` to change models.
