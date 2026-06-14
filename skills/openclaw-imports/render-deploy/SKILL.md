@@ -1,6 +1,23 @@
 ---
 name: render-deploy
 description: Deploy applications to Render by analyzing codebases, generating render.yaml Blueprints, and providing Dashboard deeplinks. Use when the user wants to deploy, host, publish, or set up their application on Render's cloud platform.
+version: 1.0.0
+metadata:
+  hermes:
+    trigger_conditions:
+      - "deploy to Render"
+      - "create a render.yaml"
+      - "host on Render"
+      - "publish my app"
+      - "set up Render deployment"
+      - "Render blueprint"
+      - "deploy my application"
+      - "Blueprints deploy"
+      - "Render MCP"
+      - "render deploy static site"
+      - "render deploy my app"
+      - "deploy with Render"
+      - "cloud deploy Render"
 ---
 
 # Deploy to Render
@@ -30,6 +47,16 @@ Activate this skill when users want to:
 - Set up Render deployment for their project
 - Host or publish their application on Render's cloud platform
 - Create databases, cron jobs, or other Render resources
+
+## Not For
+
+- **Deploying static sites to Cloudflare** → use `cloudflare-pages-deploy` or `cloudflare-pages-static-site` instead
+- **GitHub Actions CI/CD** → use `github-pr-workflow` for GitHub automation instead
+- **Docker-only deployments without Git** → this skill's MCP tools require a Git repo. For pure Docker deploys, guide the user to Render Dashboard manually
+- **Heroku, Fly.io, Railway, or other platforms** → this skill is Render-specific. Each platform has its own skill or needs direct API usage
+- **AWS/GCP/Azure infrastructure** → Render is an alternative to these, not a frontend for them. Use cloud-specific skills instead
+- **Managing existing Render services at scale** → this skill covers initial deployment. For ongoing management with metrics/DB checks/error catalogs, suggest installing `render-debug`
+- **Database migrations or schema changes** → Render Blueprints create databases but don't handle migrations. Run migrations separately after deploying
 
 ## Happy Path (New Users)
 
@@ -463,17 +490,18 @@ Detailed checklist and commands: [references/post-deploy-checks.md](references/p
 If the service fails to start or health checks time out, use the basic triage guide:
 [references/troubleshooting-basics.md](references/troubleshooting-basics.md)
 
-## Troubleshooting
+## Pitfalls
 
-### Escalated Network Access
+1. **Blueprint deploy requires a Git remote** — Render reads `render.yaml` from the Git repo. If there's no remote (`git remote -v` shows nothing), the Blueprint deeplink will fail. Guide the user to push to GitHub/GitLab/Bitbucket first.
+2. **SSH remote URLs break the deeplink** — Render Dashboard only accepts HTTPS URLs. If `git remote get-url origin` returns `git@github.com:...`, convert to `https://github.com/...` and strip the `.git` suffix. The deeplink must be `https://dashboard.render.com/blueprint/new?repo=https://github.com/user/repo`.
+3. **`render.yaml` must be in the repo root** — Render searches for `render.yaml` or `render.yml` at the repository root. Placing it in a subdirectory means Render won't find it and deployment fails silently.
+4. **Port binding must use `0.0.0.0:$PORT`** — Render injects a `PORT` env var and requires the app to listen on `0.0.0.0`. Binding to `localhost` or `127.0.0.1` will cause health checks to fail and deploy to loop.
+5. **Secrets marked `sync: false` need manual entry** — After clicking "Apply" for the Blueprint, any env var with `sync: false` must be filled in the Render Dashboard. The deploy will fail without these. Remind the user to set secrets before the first deploy completes.
+6. **Free tier has cold starts** — Free web services sleep after 15 minutes of inactivity. The next request takes 30–60 seconds to wake up. Use a cron job or uptime monitor if this is unacceptable, or upgrade to a paid plan.
+7. **Build commands assume standard runtimes** — `buildCommand: npm ci` works because Render detects Node.js from `package.json`. If you use a non-standard build tool, specify the full build command path explicitly.
+8. **MCP tools require escalated sandbox permissions** — If deployment fails due to network issues (timeouts, DNS errors, connection resets), rerun with `sandbox_permissions=require_escalated`. MCP network calls are blocked in default sandbox mode.
+9. **Blueprint validation may not catch runtime errors** — `render blueprints validate` checks YAML syntax and schema, not whether the start command actually works. Always verify post-deploy with `list_logs` or check the Dashboard.
+10. **Direct Creation without MCP drops to CLI** — If MCP isn't configured, the skill falls back to `render` CLI commands. The `render whoami` check may silently fail without OAuth — prompt the user to run `render login` or set `RENDER_API_KEY` before continuing.
+11. **Render only supports GitHub, GitLab, Bitbucket** — Repos hosted on self-hosted Gitea, Gogs, or other Git servers cannot be deployed via Blueprint or Direct Creation. Use the Docker image deploy path via Dashboard instead.
 
-If deployment fails due to network issues (timeouts, DNS errors, connection resets), rerun the deploy with escalated permissions (use `sandbox_permissions=require_escalated`). The deploy requires escalated network access when sandbox networking blocks outbound requests.
-
-Example guidance to the user:
-
-```
-The deploy needs escalated network access to deploy to Render. I can rerun the command with escalated permissions—want me to proceed?
-```
-
-Optional: If you need deeper diagnostics (metrics/DB checks/error catalog), suggest installing the
-`render-debug` skill. It is not required for the core deploy flow.
+## Troubleshooting (Quick Reference)
