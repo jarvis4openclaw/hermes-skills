@@ -21,6 +21,26 @@ metadata:
 
 Extract transcripts from YouTube videos and convert them into useful formats.
 
+## When to Use
+
+- User shares a YouTube URL, short link, or embeds a video
+- User asks to summarize what a video says without watching it
+- User requests structured content from a video: chapters, quotes, blog posts, Twitter/X threads
+- User wants timestamps + key points from educational, technical, or conference talks
+- User needs a transcript for quoting, translation, or downstream processing
+- User provides a video ID directly (11-char string)
+- User asks "what's in this video" or "what does this person say about X"
+
+## Not For
+
+- **Downloading YouTube video/audio files** → use `yt-dlp` or `ffmpeg` instead
+- **Real-time livestream commentary or chat** → this only handles transcripts after the stream ends
+- **Non-YouTube video platforms (Vimeo, Dailymotion, Bilibili)** → `youtube-transcript-api` is YouTube-only; use platform-specific APIs or general-purpose transcription tools
+- **Speaker diarization or multi-speaker identification** → the transcript is single-speaker text; use `whisper` with diarization for speaker attribution
+- **Full-text search across multiple videos** → this fetches one video at a time; use a video search API or your database for cross-video search
+- **Audio-only extraction or waveform analysis** → use `ffmpeg` for audio extraction, `songsee` for spectrograms
+- **Monetization, view count, or channel analytics** → use the YouTube Data API v3; this tool only handles transcripts
+
 ## Setup
 
 ```bash
