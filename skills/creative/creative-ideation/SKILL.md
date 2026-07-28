@@ -1,196 +1,222 @@
 ---
-name: ideation
-title: Creative Ideation — Constraint-Driven Project Generation
-description: "Generate project ideas via creative constraints."
-version: 1.1.0
+name: creative-ideation
+title: Creative Ideation — Routed Library of Creative Methods
+description: "Generate ideas via named methods from creative practice."
+version: 2.2.0
 author: SHL0MS
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [Creative, Ideation, Projects, Brainstorming, Inspiration]
+    tags: [Creative, Ideation, Brainstorming, Methods, Inspiration]
     category: creative
     requires_toolsets: []
     trigger_conditions:
-      - "I want to build something"
-      - "give me a project idea"
-      - "I'm bored"
-      - "what should I make"
-      - "inspire me"
-      - "I have tools but no direction"
-      - "weekend project ideas"
-      - "side project inspiration"
-      - "creative coding prompts"
-      - "maker project ideas"
-      - "something to build this weekend"
-      - "project suggestions"
-      - "what can I build with"
+      - "Generate ideas for a project"
+      - "I need creative inspiration"
+      - "Brainstorming session"
+      - "I'm stuck on a creative problem"
+      - "Make this concept weirder"
+      - "Help me pick between ideas"
+      - "Give me variations on this theme"
+      - "Unblock my thinking on"
+      - "Creative methods for brainstorming"
+      - "Refine this rough concept"
+      - "Synthesize my research notes"
+      - "I want to invent something new"
+      - "What should I make next"
 ---
 
 # Creative Ideation
 
-## When to Use
-
-- User says "I want to build something" with no direction → pick a random constraint
-- User wants a weekend project → "Nothing new except glue" or "Start at the punchline"
-- User is learning a language → "Blatantly copy something" or "Automate the annoying thing"
-- User wants something weird/funny → "Hostile UI", "Frankenstein week", "Start at the punchline"
-- User wants something useful/practical → "Solve your own itch", "The CLI tool that should exist"
-- User wants something beautiful/artistic → "Do a lot of math", "One million of something"
-- User is burned out → "High concept low effort", "Make something that dies"
-- User wants a challenge → "One million of something", "Subtract", "Take two"
+A library of ideation methods for any domain. Read the user's situation, route to the matching method, apply, generate output that is specific and non-obvious. Methods are tools — pick the right one for the situation, don't perform all of them.
 
 ## Not For
 
-- **Structured project planning with milestones** → use `writing-plans` instead
-- **Breaking down an existing idea into tasks** → use `subagent-driven-development` instead
-- **Technical architecture decisions** → use `plan` instead
-- **Code implementation of a chosen idea** → use `spike` or `subagent-driven-development` instead
-- **Researching feasibility of a specific concept** → use `github-issues` or `web_search` instead
-- **Managing a project backlog** → use `linear` or `github-issues` instead
-- **Generating code from specifications** → use `codex` or `claude-code` instead
+- **Technical debugging or root cause analysis** → use `systematic-debugging` or `diagnosing-bugs` instead — ideation methods don't substitute for structured troubleshooting
+- **Code architecture decisions** → use `improve-codebase-architecture` or `critical-review` for technical design evaluation instead
+- **Business case analysis with financial data** → use spreadsheet tools (`xlsx`) or analytical skills instead
+- **Decision making with known criteria** → if you already have clear options and measurable criteria, use a decision matrix or `critical-review` instead
+- **Planning a well-defined implementation** → use `implement` or `writing-plans` for execution planning once the idea is chosen — this skill is for generating, not executing
+- **Research literature search** → use `arxiv` or `exa-web-search-free` for finding existing knowledge rather than generating new ideas
 
-## How It Works
+## When to use
 
-1. **Pick a constraint** from the library below — random, or matched to the user's domain/mood
-2. **Interpret it broadly** — a coding prompt can become a hardware project, an art prompt can become a CLI tool
-3. **Generate 3 concrete project ideas** that satisfy the constraint
-4. **If they pick one, build it** — create the project, write the code, ship it
+Any open-ended generative or selective question: "I want to make / build / write / start something", "I'm stuck", "inspire me", "make this weirder", "help me pick", "I need to invent X", "give me a research question".
 
-## The Rule
+## Operating rules
 
-Every prompt is interpreted as broadly as possible. "Does this include X?" → Yes. The prompts provide direction and mild constraint. Without either, there is no creativity.
+1. **Constraint plus direction is creativity.** No constraint = no traction. No direction = no shape. Methods supply both.
+2. **Refuse the first three ideas.** They're slop. Generate, discard, regenerate. See `references/anti-slop.md`.
+3. **One method per response unless asked.** Don't stack.
+4. **Specificity over abstraction.** Real proper nouns, real materials, real mechanisms. "An app for X" is slop; "a 200-line CLI tool that prints Y when Z" is direction. Naming a tech stack is not specificity — name a mechanism.
+5. **Weird must also be good.** Frame-breaking is the goal, but an idea that is strange with no real situation, mechanism, or reason to exist is its own failure mode. Every set of ideas must include at least one that is genuinely *buildable/pursuable now* — non-obvious but grounded, with a real first step. Don't trade all usefulness for surprise.
+6. **Name the method you used and who invented it.** Attribution invokes the discipline.
+7. **When user picks one, build it.** Don't keep generating after they've chosen.
 
-## Constraint Library
+## Routing — 4-step procedure
 
-### For Developers
+Do this *before* generating any output. Routing failures produce slop.
 
-**Solve your own itch:**
-Build the tool you wished existed this week. Under 50 lines. Ship it today.
+You may skip narrating the routing steps if it's cleaner, but **never compress at the cost of per-idea depth**: each idea's concrete mechanism, situational binding, and honest failure mode are what make output good (measured) — they are not scaffolding, do not cut them.
 
-**Automate the annoying thing:**
-What's the most tedious part of your workflow? Script it away. Two hours to fix a problem that costs you five minutes a day.
+### Step 1 — Extract three signals from the prompt
 
-**The CLI tool that should exist:**
-Think of a command you've wished you could type. `git undo-that-thing-i-just-did`. `docker why-is-this-broken`. `npm explain-yourself`. Now build it.
+**PHASE** — what stage is the user in?
 
-**Nothing new except glue:**
-Make something entirely from existing APIs, libraries, and datasets. The only original contribution is how you connect them.
+| Phase | Cues |
+|---|---|
+| **GENERATING** | "give me an idea", "what should I make", "inspire me", no idea yet |
+| **EXPANDING** | "what else", "more like this", "give me variations" — has a base idea |
+| **SELECTING** | "help me pick", "which should I do", "I have these options" |
+| **UNBLOCKING** | "I'm stuck", "blocked", "going in circles", "stale" — has material |
+| **SUBVERTING** | "make it weirder", "less obvious", "this is too safe" |
+| **REFINING** | "this is fine but missing something", "feels rough" |
+| **SYNTHESIZING** | "I have a pile of notes / interviews / observations" |
 
-**Frankenstein week:**
-Take something that does X and make it do Y. A git repo that plays music. A Dockerfile that generates poetry. A cron job that sends compliments.
+**DOMAIN** — what is the user making/doing?
 
-**Subtract:**
-How much can you remove from a codebase before it breaks? Strip a tool to its minimum viable function. Delete until only the essence remains.
+| Domain | Cues |
+|---|---|
+| **TEXT** | fiction, essay, poem, lyric, script, copy |
+| **OBJECT** | visual art, music, sound, performance, installation, sculpture |
+| **ARTIFACT** | software, hardware, mechanism, device |
+| **SYSTEM** | org, civic, institution, ecology, community |
+| **SELF** | life decision, career, personal practice |
+| **RESEARCH** | paper, thesis, scholarly question |
+| **PRODUCT** | business, market, service |
 
-**High concept, low effort:**
-A deep idea, lazily executed. The concept should be brilliant. The implementation should take an afternoon. If it takes longer, you're overthinking it.
+**SPECIFICITY** — how much constraint is in the prompt?
 
-### For Makers & Artists
+| Level | Cues |
+|---|---|
+| **NONE** | "I'm bored", "inspire me" — no domain, no project |
+| **DOMAIN** | "I want to write something" — knows the field, no project |
+| **PROJECT** | "I'm working on this specific X" |
+| **PROBLEM** | "I have this specific friction within X" |
 
-**Blatantly copy something:**
-Pick something you admire — a tool, an artwork, an interface. Recreate it from scratch. The learning is in the gap between your version and theirs.
+### Step 2 — Apply overrides (highest priority, fire first)
 
-**One million of something:**
-One million is both a lot and not that much. One million pixels is a 1MB photo. One million API calls is a Tuesday. One million of anything becomes interesting at scale.
+Override rules beat the routing table:
 
-**Make something that dies:**
-A website that loses a feature every day. A chatbot that forgets. A countdown to nothing. An exercise in rot, killing, or letting go.
+- **Mood signal** — user says "weird", "strange", "surprising", "less obvious", "more interesting" → `references/methods/lateral-provocations.md` or `references/methods/pataphysics.md`, regardless of domain.
+- **User names a method** — use it.
+- **User asks for a method recommendation** ("which method") → surface 2–3 candidates with one-line each, ask which to apply. Don't silently default.
+- **High-slop terrain** — "AI ideas", "startup ideas", "habit tracker", "productivity / wellness / fitness / food / travel app" → force `references/methods/lateral-provocations.md` or `references/methods/pataphysics.md` over the obvious method. Refuse the first **5** ideas, not 3.
 
-**Do a lot of math:**
-Generative geometry, shader golf, mathematical art, computational origami. Time to re-learn what an arcsin is.
+### Step 3 — Route by phase first, then domain
 
-### For Anyone
+**By phase (applies regardless of domain):**
 
-**Text is the universal interface:**
-Build something where text is the only interface. No buttons, no graphics, just words in and words out. Text can go in and out of almost anything.
+| Phase | Default route |
+|---|---|
+| GENERATING + SPECIFICITY=NONE | `references/full-prompt-library.md` **General** section (constraint dispatch) |
+| GENERATING + DOMAIN known | route by domain (next table) |
+| EXPANDING | `references/methods/scamper.md` |
+| SELECTING | `references/methods/premortem-and-inversion.md` (or `references/methods/compression-progress.md` for upside) |
+| UNBLOCKING | `references/methods/oblique-strategies.md` |
+| SUBVERTING | `references/methods/lateral-provocations.md` (fallback `references/methods/pataphysics.md`) |
+| REFINING (text) | `references/methods/defamiliarization.md` |
+| REFINING (other) | `references/methods/creative-discipline.md` (Tharp's spine) |
+| SYNTHESIZING | `references/methods/affinity-diagrams.md` |
+| Volume needed fast | `references/methods/volume-generation.md` |
 
-**Start at the punchline:**
-Think of something that would be a funny sentence. Work backwards to make it real. "I taught my thermostat to gaslight me" → now build it.
+**By domain (when GENERATING with DOMAIN known):**
 
-**Hostile UI:**
-Make something intentionally painful to use. A password field that requires 47 conditions. A form where every label lies. A CLI that judges your commands.
+| Domain | Default route |
+|---|---|
+| TEXT — formal / poetry | `references/methods/oulipo.md` |
+| TEXT — narrative | `references/methods/story-skeletons.md` |
+| TEXT — has source material to remix | `references/methods/chance-and-remix.md` |
+| OBJECT (music, visual, performance) | `references/methods/oblique-strategies.md` |
+| OBJECT — physical maker / wants a starting constraint | `references/full-prompt-library.md` **Physical / object** section |
+| ARTIFACT — wants a starting constraint | `references/full-prompt-library.md` **Software / artifact** section |
+| ARTIFACT — engineering invention with parameter conflict | `references/methods/triz-principles.md` |
+| ARTIFACT — software architecture | `references/methods/pattern-languages.md` |
+| ARTIFACT — has natural-system analog | `references/methods/biomimicry.md` |
+| ARTIFACT — accumulated assumptions to question | `references/methods/first-principles.md` |
+| SYSTEM (civic, org, institutional) | `references/methods/leverage-points.md` |
+| SYSTEM — collective / participatory | `references/full-prompt-library.md` **Social / collective** section |
+| SELF (life, career, what-to-study) | `references/methods/derive-and-mapping.md` |
+| RESEARCH — picking a question | `references/methods/compression-progress.md` |
+| RESEARCH — attacking a known problem | `references/methods/polya.md` |
+| PRODUCT (business, service) | `references/methods/jobs-to-be-done.md` |
+| Need to break a frame / find analogy | `references/methods/analogy-and-blending.md` |
 
-**Take two:**
-Remember an old project. Do it again from scratch. No looking at the original. See what changed about how you think.
+### Step 4 — Handle ambiguity and contradiction
 
-See `references/full-prompt-library.md` for 30+ additional constraints across communication, scale, philosophy, transformation, and more.
+- **Multiple paths plausible** → pick the one closest to the user's actual phrasing. Don't pick the most interesting method to seem sophisticated.
+- **Genuinely ambiguous** → ask ONE clarifying question, don't silently guess. Examples: *"Are you generating ideas or picking between ones you have?"* / *"Is this for fiction, essay, or something else?"*
+- **Signals contradict** (e.g., "weird startup ideas" → product domain + weird mood) → **stack two methods explicitly**. State what you're doing: *"Using `jobs-to-be-done` for the product framing + `lateral-provocations` to break the obvious shape."*
+- **No match** → constraint dispatch (`references/full-prompt-library.md`) is the safe fallback.
+- **Same question asked again** → switch methods. Variation in method = variation in idea distribution.
 
-## Matching Constraints to Users
+### Anti-default check (run before generating)
 
-| User says | Pick from |
-|-----------|-----------|
-| "I want to build something" (no direction) | Random — any constraint |
-| "I'm learning [language]" | Blatantly copy something, Automate the annoying thing |
-| "I want something weird" | Hostile UI, Frankenstein week, Start at the punchline |
-| "I want something useful" | Solve your own itch, The CLI that should exist, Automate the annoying thing |
-| "I want something beautiful" | Do a lot of math, One million of something |
-| "I'm burned out" | High concept low effort, Make something that dies |
-| "Weekend project" | Nothing new except glue, Start at the punchline |
-| "I want a challenge" | One million of something, Subtract, Take two |
+- About to write "Here are 5 ideas:" or a bare numbered list? → STOP. Pick a method first.
+- About to default to generic LLM-mode brainstorming? → STOP. Pick a path above.
+- Output looks like what an unrouted LLM would produce? → routing failed, redo.
 
-## Output Format
+The default LLM mode is exactly what this skill exists to displace. If you generate without routing, you've defeated the skill.
+
+For deeper edge cases (mood signals, stacking, anti-patterns) see `references/heuristics.md`.
+
+## Output format
+
+For the constraint-dispatch default path:
 
 ```
-## Constraint: [Name]
+## Constraint: [Name] — from [Source]
 > [The constraint, one sentence]
 
 ### Ideas
 
 1. **[One-line pitch]**
-   [2-3 sentences: what you'd build and why it's interesting]
-   ⏱ [weekend / week / month] • 🔧 [stack]
+   [2-3 sentences — what specifically is made, why it's interesting]
+   ⏱ [weekend/week/month]  •  🔧 [stack/medium/materials]
 
-2. **[One-line pitch]**
-   [2-3 sentences]
-   ⏱ ... • 🔧 ...
-
-3. **[One-line pitch]**
-   [2-3 sentences]
-   ⏱ ... • 🔧 ...
+2. ...
+3. ...
 ```
 
-## Example
+For other methods, use the format the method specifies (TRIZ produces a contradiction analysis; OuLiPo produces constrained text; Oblique Strategies produces a single applied card → next move). Don't force every method into the constraint template.
 
-```
-## Constraint: The CLI tool that should exist
-> Think of a command you've wished you could type. Now build it.
+**Every idea set, regardless of method:**
+- Name the method used. On slop terrain, name the obvious ideas you refused.
+- Give each idea its concrete mechanism and its honest failure mode / tradeoff / who-it's-for. This depth is what makes ideas land — measured, not decorative.
+- Mark at least one idea as the **grounded** one — buildable/pursuable now, non-obvious but with a real first step. The others can run further toward the strange; this one has to be genuinely doable. Don't let the whole set be weird-but-impractical.
 
-### Ideas
+## File map
 
-1. **`git whatsup` — show what happened while you were away**
-   Compares your last active commit to HEAD and summarizes what changed,
-   who committed, and what PRs merged. Like a morning standup from your repo.
-   ⏱ weekend • 🔧 Python, GitPython, click
-
-2. **`explain 503` — HTTP status codes for humans**
-   Pipe any status code or error message and get a plain-English explanation
-   with common causes and fixes. Pulls from a curated database, not an LLM.
-   ⏱ weekend • 🔧 Rust or Go, static dataset
-
-3. **`deps why <package>` — why is this in my dependency tree**
-   Traces a transitive dependency back to the direct dependency that pulled
-   it in. Answers "why do I have 47 copies of lodash" in one command.
-   ⏱ weekend • 🔧 Node.js, npm/yarn lockfile parsing
-```
-
-After the user picks one, start building — create the project, write the code, iterate.
-
-## Pitfalls
-
-1. **Picking a constraint too narrow** — The user says "I want a React project" and you only offer React ideas. The best outputs cross domains. Fix: Interpret every constraint broadly — a "CLI tool" constraint can yield a hardware project, an art project can become a script.
-2. **Offering only one idea** — Single ideas feel like prescriptions. Three gives choice and shows range. Fix: Always generate exactly 3 ideas per constraint.
-3. **Over-specifying the implementation** — "Build a Python CLI with click and rich" kills creativity before it starts. Fix: Suggest a stack in the ⏱ line only, keep the pitch open.
-4. **Ignoring the user's actual constraints** — User says "I only know Go" and you suggest Rust. Fix: Match constraints to user context using the Matching table.
-5. **Treating constraints as rigid rules** — "Frankenstein week" doesn't require literal Frankenstein code. Fix: The constraint is a direction, not a specification.
-6. **Not building after they pick** — Ideation without execution is daydreaming. Fix: Immediately scaffold the project when they choose.
-7. **Using the same 3 constraints every time** — Gets stale fast. Fix: Rotate through the full library; reference `references/full-prompt-library.md` for 30+ more.
-8. **Skipping the "Why it's interesting" sentence** — Ideas without rationale feel random. Fix: Every pitch needs 2-3 sentences explaining the hook.
-9. **No time estimate** — Users can't gauge commitment. Fix: Always include ⏱ with weekend/week/month.
-10. **Forgetting the constraint name in output** — The constraint provides framing. Fix: Output format requires `## Constraint: [Name]` header.
-11. **Confusing ideation with planning** — This skill generates *ideas*, not task breakdowns. Fix: For task decomposition, use `writing-plans` or `subagent-driven-development`.
-12. **Not referencing the full library** — The 14 constraints here are a starter set. Fix: Always mention `references/full-prompt-library.md` for 30+ additional constraints.
+- `references/full-prompt-library.md` — constraint library, sectioned by domain (General, Software, Physical, Social, Lists). Default path for SPECIFICITY=NONE.
+- `references/method-catalog.md` — one-line summary + when-to-use per method
+- `references/heuristics.md` — extended decision tree for edge cases
+- `references/anti-slop.md` — anti-slop rules; apply to every output
+- `references/exercises.md` — time-boxed exercises (5min / 30min / 1hr / day / week)
+- `references/methods/` — 22 named methods, one file each, load only the one you're using
 
 ## Attribution
 
-Constraint approach inspired by [wttdotm.com/prompts.html](https://wttdotm.com/prompts.html). Adapted and expanded for software development and general-purpose ideation.
+Constraint-dispatch core adapted from [wttdotm.com/prompts.html](https://wttdotm.com/prompts.html). Methods drawn from primary sources cited in each method file.
+
+## Pitfalls
+
+1. **Routing failure produces generic slop** — The most common failure mode is skipping the routing step and defaulting to LLM-mode brainstorming (5 numbered ideas with no method, no depth, no mechanism). If the output looks like what an unrouted LLM would produce, the routing was skipped — redo with a named method. See "Anti-default check" above.
+
+2. **Stacking too many methods in one response** — Operating rule #3 says one method per response unless asked. Stacking multiple methods without being asked overloads the user with incompatible output formats and dilutes each method's value.
+
+3. **Refusing only 3 ideas on slop terrain** — In high-slop terrain (AI ideas, startup ideas, habit trackers), the override rules require refusing the first **5** ideas, not 3. The first 3 are almost always derivative — the 4th and 5th refusals are where genuinely non-obvious ideas start.
+
+4. **No grounded idea in the set** — Every idea set must include at least one grounded (buildable/pursuable now) idea. If all ideas are weird but impractical, the output is useless for action. The grounded idea doesn't have to be the most exciting — it just needs a real first step.
+
+5. **Forcing every method into the constraint template** — The constraint-dispatch output format (## Constraint → > constraint → numbered ideas with ⏱ 🔧) is for the default SPECIFICITY=NONE path only. Other methods (TRIZ, OuLiPo, Oblique Strategies) have their own formats. Don't force-fit them.
+
+6. **Missing the reference file dependency** — Many methods reference files under `references/methods/`. Each method file contains crucial detail not reproduced in the main SKILL.md. Skipping the file load means skipping critical method-specific instructions.
+
+7. **Guessing instead of asking** — Step 4 of routing says "ask ONE clarifying question" when genuinely ambiguous. Silently guessing the wrong phase or domain wastes the entire response. A single question costs one turn but prevents an entire reroute.
+
+8. **Reusing the same method for repeated questions** — When the user asks the same question again, switching methods is required by Step 4. Variation in method = variation in idea distribution. Repeating the same method will produce ideas clustered in the same region of possibility space.
+
+9. **Claiming attribution without naming the source** — Operating rule #6 says "name the method you used and who invented it." Basic citation (e.g., "SCAMPER, from Bob Eberle") invokes the discipline and signals the skill was actually applied, not just guessed.
+
+10. **Letting the user's high-slopeness overwhelm the process** — When a user says "AI startup ideas" or "app ideas," the override rules force specific reference files regardless of the user's plain-language prompt. Following the user's surface request without applying overrides is a routing failure.
