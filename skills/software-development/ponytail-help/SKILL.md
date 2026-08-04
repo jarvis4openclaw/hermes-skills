@@ -2,24 +2,21 @@
 name: ponytail-help
 description: >
   Quick-reference card for all ponytail modes, skills, and commands.
-  One-shot display, not a persistent mode.
-version: 1.0.0
+  One-shot display, not a persistent mode. Trigger: /ponytail-help,
+  "ponytail help", "what ponytail commands", "how do I use ponytail".
+version: 1.1.0
+author: Hermes Agent
+license: MIT
 metadata:
   hermes:
+    tags: [Ponytail, Reference, Commands, Minimalism]
     trigger_conditions:
       - "/ponytail-help"
       - "ponytail help"
       - "what ponytail commands"
       - "how do I use ponytail"
-      - "ponytail reference"
-      - "ponytail modes"
-      - "ponytail quick reference"
-      - "show me ponytail options"
-      - "ponytail levels"
-      - "ponytail card"
-      - "ponytail cheat sheet"
-      - "what are the ponytail skills"
-      - "how to configure ponytail"
+      - "ponytail reference card"
+      - "show ponytail modes"
 ---
 
 # Ponytail Help
@@ -29,23 +26,17 @@ write flag files, or persist anything.
 
 ## When to Use
 
-- User types `/ponytail-help` or asks "how do I use ponytail"
-- User wants to see all available ponytail modes (lite/full/ultra)
-- User needs the quick-reference card of ponytail skills
-- User is configuring the default ponytail mode
-- User wants to deactivate ponytail or switch modes
-- User needs to know how to update the ponytail plugin
-- User asks about ponytail levels, skills, or triggers
-- User is confused about which ponytail mode to use
+Use when you need a quick reference card for ponytail modes, commands, and companion skills:
+- Looking up ponytail levels (Lite, Full, Ultra) and their triggers
+- Checking companion skill commands (`/ponytail`, `/ponytail-review`, `/ponytail-gain`)
+- Configuring default ponytail modes via environment variables or config files
+- Learning how to update ponytail or reset normal mode
 
 ## Not For
 
-- **Enforcing ponytail laziness actively** → use `ponytail` instead
-- **Reviewing code for over-engineering** → use `ponytail-review` instead
-- **Building with ponytail constraints** → use `ponytail` instead (this skill is reference-only)
-- **Setting up ponytail auto-activation for a host** → follow the plugin install docs at the GitHub repo
-- **Debugging why ponytail isn't applying** → use `ponytail` or check the host's plugin configuration
-- **Writing ponytail-compliant code** → use `ponytail` instead
+- **Writing or reviewing code** — this skill is a static reference card only; use `/ponytail` or `ponytail-review` for actual work.
+- **Persisting session state** — ponytail-help is explicitly one-shot and must not modify flag files or change active session state.
+- **Debugging ponytail installation errors** — use standard troubleshooting workflows instead of the reference card.
 
 ## Levels
 
@@ -63,6 +54,7 @@ Level sticks until changed or session end.
 |-------|---------|--------------|
 | **ponytail** | `/ponytail` | Lazy mode itself. Simplest solution that works. |
 | **ponytail-review** | `/ponytail-review` | Over-engineering review: `L42: yagni: factory, one product. Inline.` |
+| **ponytail-gain** | `/ponytail-gain` | Measured-impact scoreboard: less code, less cost, more speed. |
 | **ponytail-help** | `/ponytail-help` | This card. |
 
 Codex uses `@ponytail`, `@ponytail-review`, and `@ponytail-help`; Claude Code
@@ -99,19 +91,14 @@ Enable auto-update once: open `/plugin`, go to Marketplaces, pick ponytail, Enab
 
 If `/plugin` is not recognized, your Claude Code is out of date. Update it (`npm install -g @anthropic-ai/claude-code@latest`, or `brew upgrade claude-code`) and restart. Other hosts use their own update flow.
 
-## Pitfalls
-
-1. **Mode sticks until session end** — `/ponytail lite` persists for the entire session. If you want a one-shot lazy suggestion without changing the mode, ask "what's the lazier alternative?" instead of switching modes.
-2. **Config file path differs by OS** — `~/.config/ponytail/config.json` on Linux/Mac, `%APPDATA%\ponytail\config.json` on Windows. Verify the correct path before editing.
-3. **Off state still allows manual activation** — Setting `"defaultMode": "off"` only disables auto-activation at session start. `/ponytail` still activates it manually for that session.
-4. **Env var overrides config file silently** — If `PONYTAIL_DEFAULT_MODE` is set, the config file is ignored with no warning. Check for env vars first if the mode isn't what you expect.
-5. **Skill is reference-only, not a mode** — Loading `ponytail-help` displays this card and exits. It does NOT activate ponytail mode. If you want actual laziness enforcement, use `/ponytail`.
-6. **Does not work without the ponytail plugin installed** — This help card is bundled with the ponytail plugin. If `/ponytail-help` isn't recognized, the plugin isn't installed.
-7. **Host-specific plugin commands** — The `/plugin` and `/reload-plugins` commands are Claude Code-specific. Codex, OpenCode, and other hosts use different plugin management. Check the ponytail GitHub repo for host-specific install instructions.
-8. **Update flow depends on host** — Auto-update on Claude Code uses the Marketplace. On other hosts, update manually by pulling the plugin repo or reinstalling.
-9. **Deactivate commands are literal** — "stop ponytail" and "normal mode" are exact triggers. "disable ponytail" or "turn off ponytail" may not work.
-10. **Resolution order is counter-intuitive** — Env var beats config file beats default. If debugging unexpected mode, always check env vars first.
-
 ## More
 
 Full docs + examples: https://github.com/DietrichGebert/ponytail
+
+## Pitfalls
+
+1. **Persisting state from a one-shot help command** — Accidentally modifying active session state or writing flag files when invoked. Recovery: keep `ponytail-help` strictly one-shot and read-only.
+2. **Confusing Lite, Full, and Ultra behavior** — Expecting Full mode behavior while in Ultra mode (deleting requirements before building). Recovery: check current level trigger (`/ponytail lite`, `/ponytail`, or `/ponytail ultra`).
+3. **Failing to reset normal mode properly** — Stating "stop ponytail" or "normal mode" but failing to clear the active level. Recovery: explicitly deactivate using the documented deactivation commands.
+4. **Incorrect config file path** — Placing `config.json` in the wrong directory (`~/.hermes/` instead of `~/.config/ponytail/`). Recovery: place the config file at `~/.config/ponytail/config.json`.
+5. **Ignoring environment variable priority** — Wondering why `config.json` settings are overridden by environment variables. Recovery: remember that `PONYTAIL_DEFAULT_MODE` takes precedence over config files.
