@@ -3,7 +3,7 @@ name: chatterbox-turbo-server
 description: Chatterbox-Turbo voice cloning TTS server on Proxmox CT 109. Use when asked to generate speech with voice cloning, test cloned voices, or manage the Chatterbox-Turbo server.
 category: devops
 tags: [tts, voice-cloning, chatterbox, proxmox]
-version: 1.0.0
+version: 1.1.0
 metadata:
   hermes:
     tags: [tts, voice-cloning, chatterbox, proxmox]
@@ -161,6 +161,28 @@ curl -s -X POST http://192.168.100.49:8080/v1/audio/speech \
 ls -lh /tmp/test.opus
 ```
 
+## Troubleshooting Order (when the briefing is broken)
+
+Run these checks in order — they cover the four failure modes seen in production:
+
+1. **Is the service up?** `ssh root@192.168.100.49 systemctl is-active chatterbox` — if not, `systemctl restart chatterbox` and re-check.
+2. **Is the model loaded correctly?** `ssh root@192.168.100.49 journalctl -u chatterbox -n 20` — the log should show `from_local("/opt/chatterbox/mariah_model")`. If it shows the stock HF base model path, the LoRA fine-tune is not being loaded.
+3. **Is the payload reaching the server?** Check the `/opt/chatterbox-server.py` hardcoded generation values (see "LIVE SERVER IGNORES THESE" note) — if the script sends `temperature`/`speed` but the server hardcodes `temperature=0.8, top_p=0.95`, the audio will be flat/monotone regardless of the payload.
+4. **Is the audio actually generated?** `curl -s -X POST http://192.168.100.49:8080/v1/audio/speech -H "Content-Type: application/json" -d '{"text":"Hello, this is a test.","response_format":"opus"}' -o /tmp/test.opus && ls -lh /tmp/test.opus` — an `ls` output of `0` bytes or `<1KB` means generation failed (dtype crash, model load failure).
+
+## Fine-Tuned Mariah Model (deployed 2026-08-03)
+
+The server NO LONGER loads the stock HF base model. It loads `ChatterboxTurboTTS.from_local("/opt/chatterbox/mariah_model")` — a **LoRA fine-tune merged into the base T3 transformer**.
+
+- **Training output:** `/mariah/` (adapter_model.safetensors 630MB, checkpoint-epoch-2/, STATUS.md), `/root/voice_prep/` (dataset, training repo `chatterbox-finetuning/`, merge logs)
+- **Adapter config:** r=128, lora_alpha=256, dropout=0, targets `c_attn/c_proj/c_fc/spkr_enc`, modules_to_save `text_emb/text_head`, base `ResembleAI/chatterbox-turbo`
+- **Dataset:** 5,125 Mariah clips (audiobook narration + Harper's Bazaar), 2,089 transcribed rows; diarization was INCOMPLETE (pyannote API error)
+- **Merge:** `merge4.log` — 1,984 new vocab tokens mean-initialized into T3 embedding/head (new vocab 52260); merged weights saved to `chatterbox_output/t3_turbo_finetuned_merged.safetensors`
+- **Deploy:** merged file copied to `/opt/chatterbox/mariah_model/t3_turbo_v1.safetensors` (md5 0f8a959d… matches), service restarted 01:02 UTC Aug 3, 0 restarts since
+- **Verification:** `md5sum /root/voice_prep/chatterbox-finetuning/chatterbox_output/t3_turbo_finetuned_merged.safetensors /opt/chatterbox/mariah_model/t3_turbo_v1.safetensors` → identical
+- Auxiliary weights (`s3gen_meanflow.safetensors`, `ve.safetensors`) are still base — LoRA only touched T3. The served tokenizer files (vocab.json/merges.txt) appear to be base-size (50259) while the T3 embeddings were extended — harmless in practice since extra rows are never addressed.
+- **Side note:** the training added tokens to the T3 embedding, so the served `tokenizer_config.json`/`vocab.json` are the base ones while the T3 tensor is extended. Do NOT "fix" this by replacing tokenizer files — the model works and the extra rows are unused.
+
 ## Integration with Voice Briefing
 
 The `morning-brief-voice.sh` script uses TTS for the daily voice briefing:
@@ -202,6 +224,16 @@ The `morning-brief-voice.sh` script uses TTS for the daily voice briefing:
 }
 ```
 The user explicitly validated these settings sound "a lot better" than default. This is the recommended default. See Tuning Prosody section for limitations.
+
+**⚠️ LIVE SERVER IGNORES THESE (verified 2026-08-04):** `/opt/chatterbox-server.py` hardcodes `temperature=0.8, top_p=0.95, repetition_penalty=1.2` in the `model.generate()` call and never reads `request.speed` or `request.temperature`. So the Variant 1 payload has NO effect on the current server — the voice brief runs at temp 0.8/flat regardless of what the script sends. To actually apply the validated tuning, edit the hardcoded values in `/opt/chatterbox-server.py` and `systemctl restart chatterbox` (back up the file first). The script's payload params are decorative until then.
+
+**✅ FIXED 2026-08-04:** The server now reads `temperature`, `top_p`, and `repetition_penalty` from the request (defaults 0.8/0.95/1.2, overridable). The `speed` param is now honored via ffmpeg `atempo` filter on the WAV before opus encoding (clamped 0.5–100; <1.0 slows down, >1.0 speeds up). `morning-brief-voice.sh` now sends `temperature: 1.2, speed: 0.95` (0.95 = slightly slower than default, user preference — default 1.0 felt too fast).
+
+**⚠️ Name pronunciation: "Waaheed" (phonetic spelling) — user-validated 2026-08-04:** The TTS model does NOT pronounce "Wahid" or "Waheed" cleanly (Whisper hears "Wehide", "Winheed", "Rayene"). The spelling **"Waaheed"** produces the correct "Waheed" pronunciation — user explicitly confirmed "the second audio sounded pretty good" (isolated test with "Good morning Waaheed, have a great day."). The morning-brief prompt now instructs Ollama to spell the name exactly as **"Waaheed"** and never "Wahid". Do NOT revert to "Waheed" or "Wahid" in the dictation text.
+
+**⚠️ CRITICAL: Length limit for the fine-tuned model (~450 chars):** The fine-tuned Mariah model degrades on long text. Verified 2026-08-04: a 588-char brief produced a **cut-off tail with gibberish** (the closing quote + "i love you" were destroyed); a 280-char brief and a 314-char brief completed **cleanly with intact endings**. Root cause: `tts_turbo.py` strips all speech tokens ≥ 6561 (`speech_tokens = speech_tokens[speech_tokens < 6561]`) after generation — with the fine-tune's extended 52,260-token vocab, the model is more likely to emit OOV tokens near the tail of long text, and the whole tail gets removed. Keep briefings **under 450 characters**. Ollama sometimes ignores the 450-char instruction — `morning-brief-voice.sh` now has a **HARD TRUNCATION GUARD**: if dictation >450 chars, it truncates at the last sentence boundary under 450 before sending to TTS.
+
+**⚠️ No "[happy] i love you" closer (removed 2026-08-04):** The script previously appended `[happy] i love you!` to the dictation. User requested its removal — it contributed to the tail truncation and was disliked. The prompt now explicitly says *"Do NOT add any closing sign-off like 'I love you' or similar."*
 
 ### F5-TTS (Voice Cloning, port 7860)
 
