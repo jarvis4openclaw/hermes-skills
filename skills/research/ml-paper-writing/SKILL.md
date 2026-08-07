@@ -1,13 +1,29 @@
 ---
 name: ml-paper-writing
 description: Write publication-ready ML/AI papers for NeurIPS, ICML, ICLR, ACL, AAAI, COLM. Use when drafting papers from research repos, structuring arguments, verifying citations, or preparing camera-ready submissions. Includes LaTeX templates, reviewer guidelines, and citation verification workflows.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [semanticscholar, arxiv, habanero, requests]
 metadata:
   hermes:
     tags: [Academic Writing, NeurIPS, ICML, ICLR, ACL, AAAI, COLM, LaTeX, Paper Writing, Citations, Research]
+    trigger_conditions:
+      - "write an ML paper"
+      - "draft paper for NeurIPS"
+      - "structure my paper's argument"
+      - "verify citations for my paper"
+      - "camera-ready preparation"
+      - "format paper for ICML"
+      - "paper contribution framing"
+      - "related work section help"
+      - "abstract formula for paper"
+      - "paper checklist NeurIPS"
+      - "start paper from research repo"
+      - "find papers to cite"
+      - "resubmit paper to different venue"
+      - "how to write methods section"
+      - "limitations section required"
 
 ---
 
@@ -187,6 +203,15 @@ Use this skill when:
 - **Iterating** on drafts with scientist feedback
 
 **Always remember**: First drafts are starting points for discussion, not final outputs.
+
+## Not For
+
+- **Writing non-ML academic papers** (biology, physics, humanities) → use the appropriate domain template or plain writing skills instead
+- **LaTeX document authoring in general** (CVs, letters, theses) → use `docx` / `powerpoint` / `pdf` productivity skills instead
+- **Literature review / survey-only documents without experiments** → use `arxiv` + `grounded-citations` instead
+- **Blog posts or informal writing about research** → use `edit-article` / `no-ai-slop` / `humanizer` instead
+- **Copyediting an existing manuscript for grammar/style only** → use `edit-article` or `unslop-text` instead
+- **Citation management for a non-paper deliverable** (grant proposal, report) → use `grounded-citations` instead
 
 ---
 
@@ -841,6 +866,23 @@ Always include:
 - Error bars (specify: std dev or std error)
 - Number of runs
 - Statistical tests if comparing methods
+
+---
+
+## Pitfalls
+
+1. **Hallucinating citations from memory** — AI-generated BibTeX has ~40% error rate; fabricated references cause desk rejection or retraction. Recovery: NEVER generate BibTeX from memory — always fetch programmatically via Semantic Scholar/DOI and mark unverifiable refs as `[CITATION NEEDED]` placeholders.
+2. **Generic abstract opener** — "Large language models have achieved remarkable success..." could prefix any ML paper and signals no contribution. Recovery: delete the first sentence if it could be prepended to any paper; start with the specific contribution.
+3. **Blocking on feedback for every section** — Scientists are busy; asking permission before each section stalls the draft. Recovery: deliver a complete first draft when the repo and results are clear, then iterate — ask questions *with* the draft, not before it.
+4. **Assuming the narrative without verification** — Framing the wrong contribution wastes a full revision cycle. Recovery: confirm the one-sentence contribution with the scientist first; never assume the narrative.
+5. **Introduction ballooning past 1.5 pages** — Methods delayed past page 3 loses reviewers who skim. Recovery: split background into Related Work, front-load contribution bullets, keep Methods starting by page 2-3.
+6. **Experiments without explicit claims** — "We trained X and got 92%" doesn't tell reviewers what it proves. Recovery: add a sentence before each experiment: "This experiment tests whether [specific claim]".
+7. **Missing error bars or run counts** — Reviewer rejections frequently cite missing statistical rigor. Recovery: always include error bars (state std dev vs std error), number of runs, and statistical tests when comparing methods.
+8. **Related Work as a paper-by-paper list** — "Snap et al. introduced X while Crackle et al. introduced Y" reads as a bibliography, not analysis. Recovery: organize methodologically — "One line of work uses X assumption whereas we use Y because...".
+9. **Raster figures at low DPI** — Blurry PNGs in a PDF submission look unprofessional and can fail style checks. Recovery: vector graphics (PDF/EPS) for all plots, raster only for photographs at 600 DPI, colorblind-safe palettes.
+10. **Skipping the Limitations section** — All major venues require it; omitting it invites reviewer penalty. Recovery: write it honestly, pre-empt criticisms by identifying weaknesses first, and explain why limitations don't undermine core claims.
+11. **Copying the template directory file-by-file** — Copying only `main.tex` misses `.sty`/`.bst`/Makefile and the template won't compile. Recovery: copy the ENTIRE template directory, verify it compiles as-is before making changes.
+12. **Treating citations as complete after one search** — Related Work needs generous citation coverage; reviewers likely authored relevant papers. Recovery: search multiple angles (technique + domain, baseline comparisons, author names from existing refs) and mark gaps explicitly.
 
 ---
 

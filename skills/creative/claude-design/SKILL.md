@@ -1,7 +1,7 @@
 ---
 name: claude-design
-description: Design one-off HTML artifacts (landing, deck, prototype).
-version: 1.0.0
+description: Design one-off HTML artifacts (landing, deck, prototype). Use when asked to design or build a landing page, marketing page, slide deck, UI prototype, or interactive HTML mockup from a brief — includes CLI/API-mode adaptation, anti-slop rules, and a portable opening-prompt pattern.
+version: 1.2.0
 author: BadTechBandit
 license: MIT
 platforms: [linux, macos, windows]
@@ -9,6 +9,19 @@ metadata:
   hermes:
     tags: [design, html, prototype, ux, ui, creative, artifact, deck, motion, design-system]
     related_skills: [design-md, popular-web-designs, excalidraw, architecture-diagram]
+    trigger_conditions:
+      - "design a landing page"
+      - "build me a website / webpage"
+      - "make a slide deck / presentation HTML"
+      - "create a UI prototype / mockup"
+      - "design an artifact / component"
+      - "make it look professional / beautiful / polished"
+      - "HTML mockup / preview"
+      - "design system for my site"
+      - "motion study / animated demo"
+      - "art direction / visual style"
+      - "I need a design brief scoped"
+      - "design one-off artifact"
 ---
 
 # Claude Design for CLI/API Agents
@@ -16,6 +29,21 @@ metadata:
 Use this skill when the user asks for design work that would normally fit Claude Design, but the agent is running in a CLI/API environment instead of the hosted Claude Design web UI.
 
 The goal is to preserve Claude Design's useful design behavior and taste while removing hosted-tool plumbing that does not exist in normal agent environments.
+
+## When to Use
+
+- The user wants a **from-scratch designed artifact** — landing page, slide deck, UI prototype, component lab, or motion study — with no specific brand or token system dictated.
+- The user asks for design *process and taste*: how to scope a brief, gather context, produce variants, verify a local HTML artifact, and avoid AI-design slop.
+- The user references "Claude Design" behavior but the agent runs in CLI/API mode (no hosted panes, no `done()` callbacks, no project paths).
+- The user wants a polished one-off HTML file delivered locally (artifact + verification loop), not a hosted preview.
+
+## Not For
+
+- Matching a known brand's look (Stripe, Linear, Vercel, Notion, Airbnb) → load `popular-web-designs` to supply the visual vocabulary instead (compose with this skill for the process).
+- Authoring a formal design-token spec file (Google DESIGN.md format, WCAG checks, Tailwind/DTCG export) → use `design-md` instead.
+- Hand-drawn Excalidraw diagrams / flowcharts → use `excalidraw` instead.
+- Architecture / cloud / infra diagrams (dark-themed SVG) → use `architecture-diagram` instead.
+- A quick throwaway HTML mockup with 2-3 variants to compare → `sketch` is lighter; this skill is for a single designed, verified artifact.
 
 **Before starting, check for other web-design skills like `popular-web-designs` (ready-to-paste design systems for Stripe, Linear, Vercel, Notion, etc.) and `design-md` (Google's DESIGN.md token spec format).** If the user wants a known brand's look, load `popular-web-designs` alongside this one and let it supply the visual vocabulary. If the deliverable is a token spec file rather than a rendered artifact, use `design-md` instead. Full decision table below.
 
@@ -165,6 +193,31 @@ Skip questions when:
 
 When proceeding with assumptions, label only the important ones.
 
+## Surface-First: Commit to a Composition Before Touching Tokens
+
+The single highest-leverage anti-slop rule. Most AI design slop is **compositional, not cosmetic** — the model reaches for a centered hero + three equal-weight feature cards for *every* surface, then decorates. Recoloring or restyling that layout never fixes it, because the layout was wrong before a single color was chosen.
+
+Before you write any colors, type scale, or components, **commit out loud to exactly one surface archetype.** This conditions generation on a high-level plan first, which collapses the entropy of what gets produced — the same reason a chain-of-thought step improves reasoning.
+
+The seven surfaces:
+
+1. **Monitor** — the user is watching state change (dashboards, status pages, observability). Density, glanceable hierarchy, no marketing framing.
+2. **Operate** — the user is taking action on things (consoles, admin panels, queues, inboxes). Action affordances and selection state dominate.
+3. **Compare** — the user is weighing options against each other (pricing, plans, spec tables, search results). Aligned columns, parity of structure, one differentiator emphasized.
+4. **Configure** — the user is setting things up (settings, forms, wizards, onboarding). Progressive disclosure, clear save/validation states, low decoration.
+5. **Decide / Learn** — the user is being convinced or taught (landing pages, docs, marketing). One idea lands per section; this is the ONLY surface where a hero is usually correct.
+6. **Explore** — the user is browsing an open space (galleries, maps, search-and-filter, catalogs). Filters, result grids, and zoom/peek are the composition.
+7. **Command / Inspect** — the user is driving by keyboard or drilling into one object (command bars, inspectors, detail panes, property editors). Speed and focus over breadth.
+
+Rules:
+
+- State the surface in one line before designing (e.g. "This is a **Monitor** surface, so density and glanceability beat a hero").
+- A dashboard is a Monitor surface, not a Decide surface — do not give it a centered hero and three feature cards.
+- If a screen genuinely spans two surfaces, name the **primary** one and treat the other as secondary; do not average them into mush.
+- The hero-plus-three-cards composition is correct for **Decide/Learn only**. Reaching for it anywhere else is the #1 tell.
+
+This one constraint eliminates more generic-looking UI than any aesthetic rule below.
+
 ## Workflow
 
 1. **Understand the brief**
@@ -177,7 +230,11 @@ When proceeding with assumptions, label only the important ones.
    - Read supplied docs, screenshots, repo files, or design assets.
    - Identify the visual vocabulary before writing code.
 
-3. **Define the design system for this artifact**
+3. **Commit to a surface** (see "Surface-First")
+   - Name the one surface archetype before any visual tokens.
+   - This conditions the composition; everything below inherits from it.
+
+4. **Define the design system for this artifact**
    - colors
    - type
    - spacing
@@ -187,25 +244,26 @@ When proceeding with assumptions, label only the important ones.
    - component treatment
    - interaction rules
 
-4. **Choose the right format**
+5. **Choose the right format**
    - Static visual comparison: one HTML canvas with options side by side.
    - Interaction/flow: clickable prototype.
    - Presentation: fixed-size HTML deck with slide navigation.
    - Component exploration: component lab with variants.
    - Motion: timeline or state-based animation.
 
-5. **Build the artifact**
+6. **Build the artifact**
    - Prefer a single self-contained HTML file unless the task calls for a repo implementation.
    - Preserve prior versions for major revisions.
    - Avoid unnecessary dependencies.
 
-6. **Verify**
+7. **Verify**
    - Confirm files exist.
    - Run any available syntax/static checks.
    - If browser tools are available, open the file and check console errors.
    - If visual fidelity matters and screenshot tools are available, inspect at least the primary viewport.
+   - Run the slop self-audit (see "Slop Diagnostic") and repair only what it flags.
 
-7. **Report briefly**
+8. **Report briefly**
    - exact file path
    - what was created
    - caveats
@@ -403,6 +461,35 @@ Avoid common AI design sludge:
 
 Minimal is not automatically good. Dense is not automatically cluttered. Choose intentionally.
 
+## Slop Diagnostic: Score Before You Fix
+
+AI design slop has a tiny, predictable failure distribution — designers asked to label AI UIs collapse the "this is AI" signal down to about ten tells. Before polishing or repairing an artifact, run this as an explicit self-audit and write a short report. **Diagnose first, treat second** — auditing and fixing in one breath fails, because the model's prior outweighs the instruction and it repeats the mistake (recolors when it needed re-layout, polishes type on a composition problem).
+
+The ten tells (presence of each = one point of slop; lower is better):
+
+1. **Tech gradient** — blue/violet/indigo glossy gradient on everything.
+2. **Generic tech hue** — the default accent is indigo/violet (not chosen for the brand, just the model's favorite).
+3. **Feature-tile grid** — icon + heading + sentence × 3, all equal weight, nothing prioritized.
+4. **Accent rail** — a colored left strip on cards: decoration pretending to be organization.
+5. **Unearned blur** — glassmorphism with no real depth/elevation system behind it.
+6. **Monument stat** — oversized numbers filling space that should carry product story.
+7. **Icon topper** — a rounded-square icon centered above every heading (Tailwind-template filler).
+8. **Center stack** — everything centered because no real composition was committed to.
+9. **Default type** — Inter (or system-ui) used by default rather than chosen.
+10. **Wrong surface** — the composition doesn't match the surface (e.g. a hero on a Monitor surface). This is the root cause behind most of the others.
+
+How to run it:
+
+- Score the artifact out of 10 (10 = maximum slop). State the score and list which tells fired, in one short report.
+- Treat the report as **context, not a to-do list** — it tells you *where* to spend repair effort, it does not dictate edits.
+- Then repair, matched to the diagnosis:
+  - tells 3, 8, 10 → **re-layout / re-compose** (revisit the surface choice — do not recolor).
+  - tells 1, 2, 9 → **recolor / re-typeset** (palette and type are genuinely the problem here).
+  - tells 4, 5, 6, 7 → **remove the decoration**; replace it with real hierarchy (scale, weight, spacing).
+- Re-score after repairing. Do not declare done while compositional tells (3, 8, 10) are still firing — those are causes, the rest are usually symptoms.
+
+The point of separating diagnosis from treatment: let the audit complain first, then fix only what it complained about, in the register the complaint calls for.
+
 ## Typography
 
 Use the existing type system if one exists.
@@ -582,10 +669,13 @@ You are running in CLI/API mode, not hosted Claude Design. Ignore references to 
 
 ## Pitfalls
 
-- Do not paste hosted tool schemas into a skill. They cause fake tool calls.
-- Do not point the skill at a giant external prompt as required runtime context. That creates drift.
-- Do not strip the design doctrine while removing tool plumbing.
-- Do not over-ask when the user already gave enough direction.
-- Do not under-ask for high-fidelity work with no brand context.
-- Do not produce generic SaaS layouts and call them designed.
-- Do not claim browser verification unless it actually happened.
+1. **Pasting hosted tool schemas into the skill** — hosted-only tool names (`done()`, `fork_verifier_agent()`, `questions_v2()`, `window.claude.complete()`) trigger fake tool calls in CLI/API mode. Keep the runtime-mode remap list current and never expose hosted schemas to the model.
+2. **Pointing the skill at a giant external prompt as required runtime context** — a huge linked prompt creates drift; the model won't re-read it and the skill degrades. The portable opening-prompt pattern in this file is the self-contained replacement.
+3. **Stripping the design doctrine while removing tool plumbing** — the hosted-tool removal should only delete plumbing; the process (context-first, surface-first, verification) is the product. If the skill reads as a tool list, it lost the doctrine.
+4. **Over-asking when the user already gave enough direction** — for a clear brief, asking 10 clarifying questions reads as friction. Ask only for genuinely missing constraints (brand, audience, deliverable format).
+5. **Under-asking for high-fidelity work with no brand context** — the opposite failure: shipping a full design on zero context. When the brief is vague and the stakes are high, ask 2-4 sharp questions first.
+6. **Producing generic SaaS layouts and calling them designed** — purple gradients, glassmorphism, stock imagery, and lorem ipsum are the slop signature. Run the Slop Diagnostic before calling anything done.
+7. **Claiming browser verification without doing it** — "verified in browser" is a factual claim. If you only confirmed the file exists, say exactly that. Never say "done" if the file was not actually written.
+8. **Building from memory when source files exist** — when recreating or extending an existing UI, read the actual theme/token/component files first. Do not reconstruct from memory and call it fidelity.
+9. **Cloning a company's distinctive UI** — proprietary layouts, exact branded surfaces, and copyrighted content are off-limits. Extract general principles (density, monochrome + one accent, keyboard affordances), transform them into an original design.
+10. **Skipping contrast and responsive checks** — light-gray-on-white body text and layouts that break at mobile widths pass a screenshot but fail real use. Check contrast (WCAG AA for body) and test the primary breakpoints.

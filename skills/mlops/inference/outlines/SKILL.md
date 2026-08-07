@@ -1,27 +1,36 @@
 ---
 name: outlines
-description: Guarantee valid JSON/XML/code structure during generation, use Pydantic models for type-safe outputs, support local models (Transformers, vLLM), and maximize inference speed with Outlines - dottxt.ai's structured generation library
-version: 1.0.0
+description: Guarantee valid JSON/XML/code structure during generation, use Pydantic models for type-safe outputs, support local models (Transformers, vLLM), and maximize inference speed with Outlines - dottxt.ai's structured generation library. Use when asked to force structured/typed output from an LLM, generate against a JSON schema or regex, or compare structured-generation libraries.
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [outlines, transformers, vllm, pydantic]
 metadata:
   hermes:
     tags: [Prompt Engineering, Outlines, Structured Generation, JSON Schema, Pydantic, Local Models, Grammar-Based Generation, vLLM, Transformers, Type Safety]
+    trigger_conditions:
+      - "structured output / structured generation"
+      - "force valid JSON from the model"
+      - "JSON schema generation"
+      - "Pydantic type-safe LLM output"
+      - "regex-constrained generation"
+      - "Outlines / dottxt"
+      - "grammar-based generation"
+      - "guarantee valid code/JSON/XML output"
+      - "compare Instructor vs Outlines vs Guidance"
+      - "local model structured generation"
 
 ---
 
 # Outlines: Structured Text Generation
 
-## When to Use This Skill
+## When to Use
 
-Use Outlines when you need to:
-- **Guarantee valid JSON/XML/code** structure during generation
-- **Use Pydantic models** for type-safe outputs
-- **Support local models** (Transformers, llama.cpp, vLLM)
-- **Maximize inference speed** with zero-overhead structured generation
-- **Generate against JSON schemas** automatically
-- **Control token sampling** at the grammar level
+- The user needs **guaranteed-valid** JSON/XML/code structure during generation (no retry loops, no post-parse failures).
+- The user wants **Pydantic-model-typed** outputs for type-safe downstream code.
+- The user runs **local models** (Transformers, llama.cpp, vLLM) and wants zero-overhead structured generation.
+- The user wants to generate against a **JSON schema or regex** with FSM-level guarantees.
+- The user is evaluating structured-generation libraries (Outlines vs Instructor vs Guidance vs LMQL).
 
 **GitHub Stars**: 8,000+ | **From**: dottxt.ai (formerly .txt)
 
@@ -638,6 +647,17 @@ class Article(BaseModel):
 - **100% valid outputs** (guaranteed by FSM)
 - No retry loops needed
 - Deterministic token filtering
+
+## Pitfalls
+
+1. **API models are not fully supported** — Outlines' FSM works on logits, which OpenAI-compatible APIs don't expose. Many features are limited or silently unavailable with API models (`outlines.llm` with remote endpoints). Fix: use local models (Transformers, llama.cpp, vLLM) for the guarantees this skill promises; use `instructor` for API models with retries.
+2. **`transformers` integration breaking on new versions** — Outlines pins to specific Transformers internals; a fresh `pip install outlines transformers` can hit version-skew errors (`TypeError` in `LogitsProcessor` hooks). Fix: install the versions listed in the project's `pyproject.toml` extras (e.g. `pip install outlines[transformers]` and let it resolve), then verify with the Quick Start snippet.
+3. **Regex/JSON schema mismatch at runtime** — a schema that is valid Pydantic but references unsupported JSON-Schema keywords (e.g. `$ref` to external files, `patternProperties`) fails at FSM-compile time, not at inference. Fix: keep schemas self-contained (inline `$defs`), and test-compile the FSM before the full run.
+4. **Forgetting `Optional` and defaults** — models with required fields that the source text may lack cause failures; the `Article` pattern (all optional + default empty list) is the robust shape. Fix: mark non-essential fields `Optional[...] = None` and give lists default empty values.
+5. **Classifying with enums but no format context** — free-form strings for category fields destroy the constraint benefit. Fix: use `Enum`/`Literal` fields and give the prompt enough context (see Best Practices); otherwise the model still wanders within the grammar.
+6. **Using structured output where it adds latency** — if the task is a single free-form completion (chat, summarization) with no schema, Outlines adds compile overhead for zero benefit. Fix: use plain generation; reserve Outlines for typed/validated outputs.
+7. **Ignoring backend differences** — behavior differs across Transformers/llama.cpp/vLLM (e.g. GGUF quirks, `context` passing, sampling settings). Fix: read `references/backends.md` before switching backends and re-verify with a small smoke test.
+8. **JSON output that is valid but wrong** — the FSM guarantees *structure*, not *semantics*. A model can emit a perfectly valid `Product` with hallucinated prices. Fix: keep post-generation checks (validation, business rules) and use constrained prompts for the content, not just the shape.
 
 ## Resources
 

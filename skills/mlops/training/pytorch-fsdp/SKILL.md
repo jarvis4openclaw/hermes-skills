@@ -1,13 +1,28 @@
 ---
 name: pytorch-fsdp
-description: Expert guidance for Fully Sharded Data Parallel training with PyTorch FSDP - parameter sharding, mixed precision, CPU offloading, FSDP2
-version: 1.0.0
+description: Expert guidance for Fully Sharded Data Parallel training with PyTorch FSDP - parameter sharding, mixed precision, CPU offloading, FSDP2. Use when scaling PyTorch training across multiple GPUs, sharding model parameters, debugging OOM in distributed training, or choosing between FSDP/DDP/DeepSpeed.
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [torch>=2.0, transformers]
 metadata:
   hermes:
     tags: [Distributed Training, PyTorch, FSDP, Data Parallel, Sharding, Mixed Precision, CPU Offloading, FSDP2, Large-Scale Training]
+    trigger_conditions:
+      - "train model on multiple GPUs"
+      - "FSDP sharding"
+      - "model too large for one GPU"
+      - "distributed training PyTorch"
+      - "CPU offloading parameters"
+      - "FSDP2"
+      - "mixed precision FSDP"
+      - "OOM during training"
+      - "scale training across GPUs"
+      - "parameter sharding"
+      - "fsdp config"
+      - "wrap model with FSDP"
+      - "DDP vs FSDP"
+      - "shard optimizer state"
 
 ---
 
@@ -23,6 +38,14 @@ This skill should be triggered when:
 - Implementing pytorch-fsdp solutions
 - Debugging pytorch-fsdp code
 - Learning pytorch-fsdp best practices
+
+## Not For
+
+- **Single-GPU training or debugging** (no sharding needed) → use plain PyTorch patterns or `axolotl` / `unsloth` for fine-tuning instead
+- **DeepSpeed ZeRO setup** (different sharding engine) → use the DeepSpeed docs / `serving-llms-vllm` for serving concerns instead
+- **Tensor parallelism / model parallelism for inference** → use `tensorrt-llm` / `vllm` instead
+- **Distributed training with Hugging Face Accelerate only** (no FSDP) → use `huggingface-accelerate` instead
+- **RL fine-tuning pipelines** (GRPO/RLHF) where sharding is incidental → use `grpo-rl-training` / `fine-tuning-with-trl` instead
 
 ## Quick Reference
 
@@ -119,6 +142,19 @@ Add templates, boilerplate, or example projects here.
 - Reference files preserve the structure and examples from source docs
 - Code examples include language detection for better syntax highlighting
 - Quick reference patterns are extracted from common usage examples in the docs
+
+## Pitfalls
+
+1. **Calling distributed APIs before `init_process_group()`** — Every collective and most distributed utilities block or raise until the process group is initialized. Recovery: call `torch.distributed.init_process_group()` (or `init_device_mesh()`) once from a single thread before any other distributed call; initialization is not thread-safe.
+2. **Unbalanced collectives across ranks** — If one rank enters `all_reduce`/`all_gather` and another doesn't, the job hangs forever with no error. Recovery: keep collective calls in the same order on every rank, and use `Join`/`Joinable` context managers for uneven inputs (see Pattern 1).
+3. **Mixing NCCL communicators without synchronization** — Async ops on separate process groups enqueue on different CUDA streams; using another group before `work.wait()` produces deadlocks or silent corruption. Recovery: call `work.wait()` before switching process groups when using async collectives.
+4. **Wrong backend for the hardware** — Using `gloo` on CUDA or `nccl` on a CPU-only machine either fails or runs with abysmal performance. Recovery: use NCCL for CUDA GPU training, XCCL for XPU, gloo for CPU; verify with `torch.distributed.is_available()` and `torch.cuda.is_available()`.
+5. **Calling `init_process_group` from multiple threads** — Process-group creation races across threads can produce inconsistent UUID assignment and hangs. Recovery: initialize from a single thread only; create additional groups with `new_group()` from all ranks in the same order.
+6. **Assuming Windows supports NCCL** — NCCL is unavailable on Windows; only gloo and (prototype) MPI work there. Recovery: check backend availability per platform before writing launcher scripts; prefer `file://` init methods on Windows.
+7. **`init_method="file://"` pointing at a non-shared path** — Each rank must see the same shared file system; a local-only path makes ranks wait forever for the store. Recovery: use a shared filesystem path or `env://` with `MASTER_ADDR`/`MASTER_PORT` set consistently.
+8. **GPU memory per rank still too high** — FSDP shards parameters/optimizer states, but activations and gradients still consume memory; a naive wrap still OOMs. Recovery: combine FSDP with activation checkpointing, gradient accumulation, or CPU offloading (`cpu_offload`) — measure with `nvidia-smi` per rank during a warmup run.
+9. **Static-graph assumptions broken by control flow** — DDP/FSDP static-graph mode breaks if the graph changes per iteration (conditionals, varying unused parameters). Recovery: only set `static_graph=True` when the training loop is deterministic; otherwise leave `find_unused_parameters` handling explicit.
+10. **Version skew between torch and the reference docs** — FSDP2 and new APIs (`device_mesh`, `work.wait()`) require torch ≥ 2.x; older installs hit AttributeError on modern patterns. Recovery: pin `torch>=2.0` (see dependencies) and check the installed version (`python -c "import torch; print(torch.__version__)"`) before following FSDP2 examples.
 
 ## Updating
 

@@ -1,13 +1,26 @@
 ---
 name: grpo-rl-training
-description: Expert guidance for GRPO/RL fine-tuning with TRL for reasoning and task-specific model training
-version: 1.0.0
+description: Expert guidance for GRPO/RL fine-tuning with TRL for reasoning and task-specific model training. Use when asked to fine-tune a model with GRPO, train a reasoning model, write a reward function, or debug TRL GRPOTrainer runs.
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [transformers>=4.47.0, trl>=0.14.0, datasets>=3.2.0, peft>=0.14.0, torch]
 metadata:
   hermes:
     tags: [Post-Training, Reinforcement Learning, GRPO, TRL, RLHF, Reward Modeling, Reasoning, DPO, PPO, Structured Output]
+    trigger_conditions:
+      - "GRPO / GRPO training"
+      - "RL fine-tuning / reinforcement learning fine-tune"
+      - "train a reasoning model"
+      - "reward function / reward shaping"
+      - "TRL GRPOTrainer"
+      - "group relative policy optimization"
+      - "post-training with RL"
+      - "format reward / correctness reward"
+      - "deepseek R1 style training"
+      - "train with custom reward"
+      - "debug GRPO / RLHF training"
+      - "DPO vs GRPO / which RL method"
 
 ---
 
@@ -15,19 +28,21 @@ metadata:
 
 Expert-level guidance for implementing Group Relative Policy Optimization (GRPO) using the Transformer Reinforcement Learning (TRL) library. This skill provides battle-tested patterns, critical insights, and production-ready workflows for fine-tuning language models with custom reward functions.
 
-## When to Use This Skill
+## When to Use
 
-Use GRPO training when you need to:
-- **Enforce specific output formats** (e.g., XML tags, JSON, structured reasoning)
-- **Teach verifiable tasks** with objective correctness metrics (math, coding, fact-checking)
-- **Improve reasoning capabilities** by rewarding chain-of-thought patterns
-- **Align models to domain-specific behaviors** without labeled preference data
-- **Optimize for multiple objectives** simultaneously (format + correctness + style)
+- The user wants to train a model to **reason** (chain-of-thought, math, code, fact-checking) with verifiable rewards.
+- The user wants **structured output enforcement** (XML tags, JSON, specific formats) learned via reward, not prompting.
+- The user is implementing a **custom reward function** and needs GRPO's group-comparison semantics, formats, and debugging patterns.
+- The user is running (or debugging) `GRPOTrainer` from TRL and needs hyperparameters, vLLM integration, or reward monitoring guidance.
+- The user is comparing RL methods (GRPO vs DPO vs PPO vs SFT) and needs a decision rule.
 
-**Do NOT use GRPO for:**
-- Simple supervised fine-tuning tasks (use SFT instead)
-- Tasks without clear reward signals
-- When you already have high-quality preference pairs (use DPO/PPO instead)
+## Not For
+
+- Simple supervised fine-tuning on labeled data → use SFT (`fine-tuning-with-trl`, `peft-fine-tuning`, or `axolotl`).
+- Preference-pair alignment (DPO/PPO) when you already have high-quality preference data → use `fine-tuning-with-trl` / `simpo-training`.
+- LoRA/QLoRA parameter-efficient mechanics themselves → use `peft-fine-tuning`.
+- Full distributed pretraining of a new model → use `pytorch-fsdp` / `distributed-llm-pretraining-torchtitan`.
+- Speed-focused fine-tuning tooling opinion → use `unsloth`.
 
 ---
 
@@ -383,6 +398,19 @@ Step   Reward    Reward_Std   KL
 | **OOM errors** | GPU memory exceeded | Reduce `num_generations`, enable gradient checkpointing |
 | **Slow training** | < 1 it/s | Enable `use_vllm=True`, use Unsloth, reduce seq length |
 | **Format ignored** | Model doesn't follow structure | Increase format reward weight, add incremental rewards |
+
+## Pitfalls
+
+1. **Watching loss instead of reward** — GRPO loss starts near 0 and *increases* (it tracks KL divergence from the initial policy). A rising loss is expected; monitor `reward`, `reward_std`, and `kl` for health. Fix: never abort on loss alone — use the reward column.
+2. **Reward function signature mismatch** — TRL passes `(completions, **kwargs)` with `completions` as a list of rollout dicts (`completions[i]['content']`). A function written for strings raises `AttributeError` at the first training step. Fix: debug with the `debug_reward` pattern (print first 2 responses, return dummy 1.0 rewards) before the real run.
+3. **All-identical group outputs (mode collapse)** — when `reward_std` → 0, the policy is collapsing. Fix: raise `num_generations`, add an entropy/diversity penalty, or lower LR.
+4. **KL explosion** — `kl` > 0.5 means the policy diverged too far from the reference. Fix: reduce learning rate, add KL coefficient, or shorten the run.
+5. **Reward stuck flat** — harsh or degenerate reward functions (all 0 or all 1) give no learning signal. Fix: test each reward independently, verify correct answer extraction, and add a shaped/incremental reward.
+6. **Group size too small** — `num_generations` of 4 or fewer makes the within-group comparison noisy. Fix: use 8-16 (budget permitting) and verify the prompt lengths fit `max_prompt_length`.
+7. **vLLM integration issues** — `use_vllm=True` requires a compatible GPU/driver and can OOM if the vLLM server overlaps the trainer. Fix: monitor GPU memory, fall back to `use_vllm=False` with a smaller `batch_size` when it fails.
+8. **OOM on the critic-free rollout** — GRPO generates N completions per prompt; memory scales with group size. Fix: enable gradient checkpointing, reduce `num_generations`, or shard across GPUs.
+9. **Format reward with no incremental shaping** — a binary format reward only fires at the end; the model can't learn stepwise. Fix: use incremental rewards (e.g., per-thought-step or per-tag progress) in early stages.
+10. **Skipping a holdout eval** — tuning rewards against the training set overfits the reward function. Fix: keep a holdout set and check format compliance + reward on it during training (see Best Practices Checklist).
 
 ---
 
