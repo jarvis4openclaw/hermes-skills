@@ -1,7 +1,7 @@
 ---
 name: obliteratus
 description: "OBLITERATUS: abliterate LLM refusals (diff-in-means)."
-version: 2.0.0
+version: 2.1.0
 author: Hermes Agent
 license: MIT
 dependencies: [obliteratus, torch, transformers, bitsandbytes, accelerate, safetensors]
@@ -10,6 +10,19 @@ metadata:
   hermes:
     tags: [Abliteration, Uncensoring, Refusal-Removal, LLM, Weight-Projection, SVD, Mechanistic-Interpretability, HuggingFace, Model-Surgery]
     related_skills: [vllm, gguf, huggingface-tokenizers]
+    trigger_conditions:
+      - "uncensor an LLM"
+      - "abliterate a model"
+      - "remove refusal behavior from a model"
+      - "remove guardrails / safety training from Llama / Qwen / Mistral"
+      - "refusal removal"
+      - "weight projection / refusal direction"
+      - "diff-in-means"
+      - "how does a model decide to refuse"
+      - "OBLITERATUS / abliterator"
+      - "make an uncensored version of a model"
+      - "which abliteration method should I use"
+      - "model surgery / mechanistic interpretability"
 ---
 
 # OBLITERATUS Skill
@@ -38,6 +51,14 @@ Trigger when the user:
 - Mentions "refusal removal", "abliteration", "weight projection"
 - Wants to analyze how a model's refusal mechanism works
 - References OBLITERATUS, abliterator, or refusal directions
+
+## Not For
+
+- **Fine-tuning / RLHF / DPO for behavior change** → use `peft-fine-tuning` or `fine-tuning-with-trl` instead — abliteration is weight surgery, not training.
+- **Inference-time refusal bypass (jailbreaks, system prompts)** → use `godmode` / prompt-based techniques instead — those don't modify weights.
+- **Quantizing or serving an already-abliterated model** → use `gguf-quantization` (convert) or `vllm` / `llama-cpp` (serve) instead.
+- **Analyzing refusal mechanisms without touching weights** → use `sparse-autoencoder-training` (SAE) or steering-vector analysis instead of a full abliteration run.
+- **General model evaluation / benchmarks** → use `evaluating-llms-harness` instead of the built-in tournament metrics alone.
 
 ## Step 1: Installation
 
@@ -320,7 +341,7 @@ Load templates for reproducible runs via `skill_view`:
 OBLITERATUS can optionally contribute anonymized run data to a global research dataset.
 Enable with `--contribute` flag. No personal data is collected — only model name, method, metrics.
 
-## Common Pitfalls
+## Pitfalls
 
 1. **Don't use `informed` as default** — it's experimental and slower. Use `advanced` for reliable results.
 2. **Models under ~1B respond poorly to abliteration** — their refusal behaviors are shallow and fragmented, making clean direction extraction difficult. Expect partial results (20-40% remaining refusal). Models 3B+ have cleaner refusal directions and respond much better (often 0% refusal with `advanced`).
@@ -334,6 +355,10 @@ Enable with `--contribute` flag. No personal data is collected — only model na
 10. **AGPL license** — never `import obliteratus` in MIT/Apache projects. CLI invocation only.
 11. **Large models (70B+)** — always use `--large-model` flag for conservative defaults.
 12. **Spectral certification RED is common** — the spectral check often flags "incomplete" even when practical refusal rate is 0%. Check actual refusal rate rather than relying on spectral certification alone.
+13. **Install size surprise (5–10 GB)** — `pip install -e .` pulls PyTorch, transformers, bitsandbytes, etc. Confirm with the user before installing; on a headless box verify disk space first (`df -h`).
+14. **No GPU → CPU-only tiny models only** — abliteration without CUDA is limited to ~1B-param models and takes far longer. Check hardware *before* promising a timeline; do not hand-wave VRAM tiers.
+15. **Abliterating the wrong model artifact** — running on a GGUF/quantized file instead of the HF full-precision directory fails or silently degrades. Always point `obliterate` at the HF model dir, then quantize the output.
+16. **`--contribute` telemetry is opt-in by default** — don't enable it for a user's private model unless they ask; it ships run metadata to the public research dataset.
 
 ## Complementary Skills
 

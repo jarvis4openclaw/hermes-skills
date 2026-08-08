@@ -1,14 +1,23 @@
 ---
 name: guidance
 description: Control LLM output with regex and grammars, guarantee valid JSON/XML/code generation, enforce structured formats, and build multi-step workflows with Guidance - Microsoft Research's constrained generation framework
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [guidance, transformers]
 metadata:
   hermes:
     tags: [Prompt Engineering, Guidance, Constrained Generation, Structured Output, JSON Validation, Grammar, Microsoft Research, Format Enforcement, Multi-Step Workflows]
-
+    trigger_conditions:
+      - "guarantee valid JSON from an LLM"
+      - "constrain LLM output with regex"
+      - "structured output / format enforcement"
+      - "build multi-step LLM workflows in Python"
+      - "token healing"
+      - "guidance library / Microsoft Research constrained generation"
+      - "select() / gen() constrained generation"
+      - "prevent invalid outputs from a model"
+      - "compare guidance vs instructor vs outlines"
 ---
 
 # Guidance: Constrained LLM Generation
@@ -24,6 +33,14 @@ Use Guidance when you need to:
 - **Prevent invalid outputs** through grammatical constraints
 
 **GitHub Stars**: 18,000+ | **From**: Microsoft Research
+
+## Not For
+
+- **Pydantic-validated structured outputs with automatic retrying** → use `instructor` instead — Guidance does not do Pydantic validation.
+- **JSON-schema-constrained generation against local/vLLM models** → use `outlines` instead when the target is a transformers/vLLM backend and you want schema-driven JSON.
+- **Declarative SQL-like constrained generation** → use `lmql` instead if the user prefers a query language over Pythonic control flow.
+- **Pure prompting / prompt-engineering without token-level constraints** → use the `humanizer` / general prompt skills instead; Guidance's value is the grammar-level guarantee.
+- **Post-hoc output validation without generation control** → use `pydantic` or `jsonschema` directly instead of paying the Guidance dependency cost.
 
 ## Installation
 
@@ -516,6 +533,17 @@ lm += gen("name", regex=r"[A-Za-z ]+", max_tokens=30)
 # ❌ Too strict: May fail or be very slow
 lm += gen("name", regex=r"^(John|Jane)$", max_tokens=10)
 ```
+
+## Pitfalls
+
+1. **Backend/version skew with transformers** — Guidance pins specific transformers versions; a too-new transformers can break `models.Transformers` at import with cryptic errors. If `import guidance` or model load fails after an upgrade, check `pip show transformers guidance` and align versions (`pip install "transformers==<version guidance expects>"`).
+2. **Regex too strict makes generation slow or fails** — an anchor-heavy regex (`^(John|Jane)$`) forces near-total token filtering; prefer loose regex with `max_tokens` and validate after. See Best Practices §6.
+3. **Forgetting `stop` sequences on free `gen()`** — without `stop="\n"` (or `stop=["\n\n"]`), multi-line outputs bleed into the next field. Always pass a stop sequence for single-line captures.
+4. **API models can't do true grammar enforcement** — Guidance's `models.OpenAI`/`models.Anthropic` constrain *logit-biased* requests and retry on violation; they do NOT get hard token-level guarantees like local backends. For strict guarantees use a local Transformers/llama.cpp backend; otherwise budget for occasional invalid outputs.
+5. **Token healing surprises with leading-space prompts** — healing works when prompt text ends mid-token, but if you append a space yourself (`"The capital is "`), the model may still emit a double space. Let the prompt end naturally and let healing do its job.
+6. **`select()` choices with overlaps** — long choices that are prefixes of each other can match the shorter one first. Order choices longest-first or add `stop` markers.
+7. **Chat-mode context managers are mandatory for chat models** — calling `gen()` outside `with system()/user()/assistant():` on an Anthropic/OpenAI chat model produces malformed requests. Always wrap chat turns in the context managers.
+8. **Pydantic integration is absent** — if the user expects schema-in → validated-out, Guidance is the wrong tool (see Not For); reach for `instructor` to avoid a mid-project rewrite.
 
 ## Comparison to Alternatives
 

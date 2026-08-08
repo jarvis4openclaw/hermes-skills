@@ -1,7 +1,7 @@
 ---
 name: pretext
-description: "Use when building creative browser demos with @chenglou/pretext — DOM-free text layout for ASCII art, typographic flow around obstacles, text-as-geometry games, kinetic typography, and text-powered generative art. Produces single-file HTML demos by default."
-version: 1.0.0
+description: Build creative browser demos with DOM-free text layout.
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
@@ -9,6 +9,15 @@ metadata:
   hermes:
     tags: [creative-coding, typography, pretext, ascii-art, canvas, generative, text-layout, kinetic-typography]
     related_skills: [p5js, claude-design, excalidraw, architecture-diagram]
+    trigger_conditions:
+      - "build a pretext demo"
+      - "text flowing around a shape / sprite"
+      - "cool kinetic typography demo"
+      - "text-as-geometry game (Tetris of words, Breakout of prose)"
+      - "ASCII art made of real words"
+      - "multiline shrink-wrap UI"
+      - "DOM-free text measurement / line layout"
+      - "per-glyph text animation (shatter, scatter, flock)"
 ---
 
 # Pretext Creative Demos
@@ -38,6 +47,14 @@ Don't use for:
 - Rich text editors, general inline formatting engines (pretext is intentionally narrow)
 - Image → text (use `ascii-art` / `ascii-video` skills)
 - Pure canvas generative art with no text role — use `p5js`
+
+## Not For
+
+- **Pure canvas generative art with no text role** → use `p5js` instead.
+- **Static SVG / architecture / infra diagrams** → use `architecture-diagram` or `excalidraw` instead — pretext is for kinetic text, not diagrams.
+- **Image-to-ASCII or video-to-ASCII conversion** → use `ascii-art` / `ascii-video` instead.
+- **One-off HTML mockups for design comparison** → use `sketch` or `claude-design` instead — those are for throwaway UI variants, not pretext's text-layout physics.
+- **Serious rich-text editing / inline formatting** → use a proper editor framework instead; pretext is intentionally narrow (measure + layout only).
 
 ## Creative Standard
 
@@ -174,7 +191,7 @@ See `templates/donut-orbit.html` and `templates/hello-orb-flow.html` for working
 - For fades, prefer layer opacity over changing glyph intensity or obstacle scale. Put transient ASCII sprites on their own canvas and fade the canvas with CSS/GSAP opacity so geometry does not appear to shrink.
 - Canvas `ctx.font` setting is surprisingly slow; set it **once** per frame if font doesn't vary, not per `fillText` call.
 
-## Common Pitfalls
+## Pitfalls
 
 1. **Drifting CSS/canvas font strings.** `ctx.font = "16px Inter"` measured, but CSS says `font-family: Inter, sans-serif; font-size: 16px`. Fine *if* Inter loads. If Inter 404s, CSS falls back to sans-serif and measurements drift by 5-20%. Always `preload` the font or use a web-safe family.
 
@@ -191,6 +208,12 @@ See `templates/donut-orbit.html` and `templates/hello-orb-flow.html` for working
 7. **Skipping rows vs adjusting width** when flowing around a shape. If the corridor on this row is too narrow to fit a line, *skip the row* (`y += lineHeight; continue;`) rather than passing a tiny maxWidth to `layoutNextLineRange` — pretext will return one-grapheme lines that look broken.
 
 8. **Shipping a cold demo.** The default first-paint looks tutorial-grade. Add: vignette, subtle scanline, idle auto-motion, one carefully chosen interactive response (drag, hover, scroll, click). Without these, "cool pretext demo" lands as "intern repro of the README."
+
+9. **Pinned version drift.** The `@0.0.6` import pins a version that may be old. If behavior looks off (line breaking, measurement), check npm for the latest and re-pin; don't silently stay on a stale release.
+
+10. **Demo works in the file but not over `file://`.** Some browsers block `esm.sh` module imports on `file://` origins (CORS). If the user opens the HTML directly and sees a blank page, serve it with `python3 -m http.server` instead — and say so in the handoff.
+
+11. **Ignoring console errors from pretext itself.** Pretext throws on bad font strings (e.g. `prepareWithSegments` with a malformed `ctx.font` format). If text doesn't render, check the console FIRST before debugging layout code.
 
 ## Verification Checklist
 
