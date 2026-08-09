@@ -1,7 +1,7 @@
 ---
 name: weights-and-biases
 description: "W&B: log ML experiments, sweeps, model registry, dashboards."
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [wandb]
@@ -9,6 +9,17 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [MLOps, Weights And Biases, WandB, Experiment Tracking, Hyperparameter Tuning, Model Registry, Collaboration, Real-Time Visualization, PyTorch, TensorFlow, HuggingFace]
+    trigger_conditions:
+      - "track ml experiment"
+      - "wandb log metrics"
+      - "hyperparameter sweep"
+      - "model registry"
+      - "wandb artifact"
+      - "visualize training"
+      - "compare runs"
+      - "wandb login"
+      - "offline wandb"
+      - "wandb keras callback"
 
 ---
 
@@ -26,6 +37,13 @@ Use Weights & Biases (W&B) when you need to:
 - **Track artifacts** (datasets, models, code) with lineage
 
 **Users**: 200,000+ ML practitioners | **GitHub Stars**: 10.5k+ | **Integrations**: 100+
+
+## Not For
+
+- **Self-hosted experiment tracking without cloud** → use `mlflow` or TensorBoard (wandb requires wandb.ai account/API key)
+- **Pure PyTorch logging without any tracker** → TensorBoard (`torch.utils.tensorboard`) is lighter if you never need sweeps/registry
+- **Full ML pipeline orchestration** (data pipelines, deployment) → see `weights-and-biases` only for tracking; pair with `pytorch-lightning` / `axolotl` / `serving-llms-vllm`
+- **Comparing models on benchmarks, not runs** → use `evaluating-llms-harness` (lm-eval-harness) instead
 
 ## Installation
 
@@ -238,7 +256,7 @@ sweep_config = {
     },
     'parameters': {
         'learning_rate': {
-            'distribution': 'log_uniform',
+            'distribution': 'log_uniform_values',
             'min': 1e-5,
             'max': 1e-1
         },
@@ -317,7 +335,7 @@ sweep_config = {
     'method': 'bayes',
     'metric': {'name': 'val/loss', 'goal': 'minimize'},
     'parameters': {
-        'lr': {'distribution': 'log_uniform', 'min': 1e-5, 'max': 1e-1}
+        'lr': {'distribution': 'log_uniform_values', 'min': 1e-5, 'max': 1e-1}
     }
 }
 ```
@@ -433,17 +451,21 @@ trainer.fit(model, datamodule=dm)
 
 ```python
 import wandb
-from wandb.keras import WandbCallback
+from wandb.integration.keras import WandbMetricsLogger, WandbModelCheckpoint
 
 # Initialize
 wandb.init(project="keras-demo")
 
-# Add callback
+# Add callbacks (the monolithic WandbCallback was removed;
+# use the dedicated callbacks from wandb.integration.keras instead)
 model.fit(
     x_train, y_train,
     validation_data=(x_val, y_val),
     epochs=10,
-    callbacks=[WandbCallback()]  # Auto-logs metrics
+    callbacks=[
+        WandbMetricsLogger(),                        # Auto-logs metrics
+        WandbModelCheckpoint("models/model-{epoch}")  # Saves checkpoints
+    ]
 )
 ```
 
@@ -584,6 +606,16 @@ print(f"Share this URL: {run.url}")
 - **Examples**: https://github.com/wandb/examples
 - **Community**: https://wandb.ai/community
 - **Discord**: https://wandb.me/discord
+
+## Pitfalls
+
+1. **`wandb.init()` hangs or fails without an API key** — W&B requires `wandb login` or `WANDB_API_KEY`. In headless/cron environments there is no browser login — set `export WANDB_API_KEY=<key>` (or `WANDB_MODE=offline`) before the first `wandb.init()`. `wandb.login()` in a notebook works, but in scripts the env-var form is the reliable path.
+2. **The monolithic `WandbCallback` was removed** — In current `wandb.integration.keras`, `WandbCallback` no longer exists. Use the dedicated callbacks: `WandbMetricsLogger()` and `WandbModelCheckpoint("models/model-{epoch}")`. Old tutorials still show the removed monolithic callback — don't copy them.
+3. **Runs pile up and confuse comparisons** — Every `wandb.init()` without a `name`/`tags`/`group` creates another anonymous run. Use descriptive names (`bert-base-lr0.001-bs32-epoch10`), tags, and `group=` for related runs so the dashboard stays navigable.
+4. **Forgetting `wandb.finish()`** — Unfinished runs stay "running" in the dashboard and can block sweep agents. Always call `wandb.finish()` at the end of a training script (or use a `with wandb.init(...)` / try-finally block).
+5. **Logging huge media every step** — `wandb.log({"examples": [wandb.Image(img) for img in imgs]})` every batch explodes storage and UI. Log media at a fixed interval (e.g., every N epochs) and keep tables small.
+6. **Sweeps can't find your training function** — `wandb.agent(sweep_id, function=train)` requires `train` to be a module-level function (not nested/lambda) and `wandb.init()` inside it must not pass conflicting `project`/`config`. Keep the sweep target importable.
+7. **Offline runs never sync automatically** — With `WANDB_MODE=offline`, runs write locally and only upload when you run `wandb sync <run_dir>`. Document that step for anyone relying on the dashboard.
 
 ## See Also
 

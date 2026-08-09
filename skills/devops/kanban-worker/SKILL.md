@@ -1,17 +1,42 @@
 ---
 name: kanban-worker
 description: Pitfalls, examples, and edge cases for Hermes Kanban workers. The lifecycle itself is auto-injected into every worker's system prompt as KANBAN_GUIDANCE (from agent/prompt_builder.py); this skill is what you load when you want deeper detail on specific scenarios.
-version: 2.0.0
+version: 2.1.0
 platforms: [linux, macos, windows]
+environments: [kanban]
 metadata:
   hermes:
     tags: [kanban, multi-agent, collaboration, workflow, pitfalls]
     related_skills: [kanban-orchestrator]
+    trigger_conditions:
+      - "kanban worker spawned"
+      - "kanban task retry"
+      - "kanban workspace kind"
+      - "kanban block vs complete"
+      - "kanban handoff metadata"
+      - "kanban heartbeat"
+      - "review-required kanban"
+      - "kanban artifacts upload"
+      - "kanban tenant isolation"
 ---
 
 # Kanban Worker — Pitfalls and Examples
 
 > You're seeing this skill because the Hermes Kanban dispatcher spawned you as a worker with `--skills kanban-worker` — it's loaded automatically for every dispatched worker. The **lifecycle** (6 steps: orient → work → heartbeat → block/complete) also lives in the `KANBAN_GUIDANCE` block that's auto-injected into your system prompt. This skill is the deeper detail: good handoff shapes, retry diagnostics, edge cases.
+
+## When to Use
+
+- You are a dispatched Kanban worker and need deeper detail than the auto-injected `KANBAN_GUIDANCE` lifecycle — workspace kinds, retry diagnostics, block vs complete decisions
+- You are writing a `kanban_complete` handoff and need a good `summary`/`metadata`/`artifacts` shape for downstream workers
+- You hit a retry (`runs:` with prior attempts in `kanban_show`) and need to diagnose what the previous run did wrong
+- You are deciding whether to `kanban_complete` vs `kanban_block(reason="review-required: ...")` for a code change that needs human eyes
+
+## Not For
+
+- **Decomposing a high-level goal into child tasks** → that's orchestrator work; see `kanban-orchestrator`
+- **Running Codex CLI as a Kanban worker** → see `kanban-codex-lane`
+- **General multi-agent architecture questions** → see `dynamic-workflow` for fan-out within one turn
+- **Board administration** (creating cards, routing, unblocking) → the orchestrator profile / `hermes kanban` CLI, not the worker skill
 
 ## Workspace handling
 
@@ -99,6 +124,27 @@ kanban_complete(
 
 Shape `metadata` so downstream parsers (reviewers, aggregators, schedulers) can use it without re-reading your prose.
 
+## Shipping deliverables (`artifacts=[...]`)
+
+If your task produced files a human actually wants — a chart, a PDF, a spreadsheet, a generated image, an archive — pass their **absolute paths** to `kanban_complete(artifacts=[...])`. The gateway notifier uploads each one as a native attachment to whoever subscribed to the task, so the deliverable lands in their chat alongside the completion message instead of being a path they have to go fetch.
+
+```python
+kanban_complete(
+    summary="Q3 revenue analysis: 14% QoQ growth, EMEA the laggard. Chart + full PDF attached.",
+    artifacts=["/tmp/q3-revenue.png", "/tmp/q3-report.pdf"],
+    metadata={"rows_analyzed": 48000, "growth_qoq": 0.14},
+)
+```
+
+Images and video embed inline; PDFs, docx, csv/xlsx/json/yaml, pptx, zip/tar/gz, audio, and html upload as files. Rules:
+
+- **Absolute paths only**, and the file must still exist when you complete — don't point at a scratch file you already deleted.
+- **Only real deliverables.** Skip intermediate logs, scratch files, and inputs the human already has.
+- `artifacts` is the **top-level** parameter the notifier reads. Do not bury deliverable paths in `metadata` (e.g. `metadata.codex_lane.artifacts`) and expect them to upload — the notifier only scans the top-level `artifacts` list, with a best-effort fallback over your `summary`/`result` text. Metadata paths are for downstream-worker bookkeeping, not delivery.
+- A bare string is auto-promoted to a one-element list, and it merges with any pre-existing `metadata.artifacts` without dupes.
+
+Same primitive works outside kanban: any agent surface delivers a file just by writing its absolute path into the response, and Slack/Discord/Telegram/etc. upload it natively — the `artifacts` param is the structured kanban entry point.
+
 ## Claiming cards you actually created
 
 If your run produced new kanban tasks (via `kanban_create`), pass the ids in `created_cards` on `kanban_complete`. The kernel verifies each id exists and was created by your profile; any phantom id blocks the completion with an error listing what went wrong, and the rejected attempt is permanently recorded on the task's event log. **Only list ids you captured from a successful `kanban_create` return value — never invent ids from prose, never paste ids from earlier runs, never claim cards another worker created.**
@@ -174,11 +220,15 @@ You can configure the gateway to receive cross-profile Kanban task notifications
 
 ## Pitfalls
 
-**Task state can change between dispatch and your startup.** Between when the dispatcher claimed and when your process actually booted, the task may have been blocked, reassigned, or archived. Always `kanban_show` first. If it reports `blocked` or `archived`, stop — you shouldn't be running.
-
-**Workspace may have stale artifacts.** Especially `dir:` and `worktree` workspaces can have files from previous runs. Read the comment thread — it usually explains why you're running again and what state the workspace is in.
-
-**Don't rely on the CLI when the guidance is available.** The `kanban_*` tools work across all terminal backends (Docker, Modal, SSH). `hermes kanban <verb>` from your terminal tool will fail in containerized backends because the CLI isn't installed there. When in doubt, use the tool.
+1. **Task state can change between dispatch and your startup** — Between when the dispatcher claimed and when your process actually booted, the task may have been blocked, reassigned, or archived. Always `kanban_show` first. If it reports `blocked` or `archived`, stop — you shouldn't be running.
+2. **Workspace may have stale artifacts** — Especially `dir:` and `worktree` workspaces can have files from previous runs. Read the comment thread — it usually explains why you're running again and what state the workspace is in. Verify output freshness before trusting it (a stalled child often completed its write anyway — check the filesystem before retrying).
+3. **Don't rely on the CLI when the guidance is available** — The `kanban_*` tools work across all terminal backends (Docker, Modal, SSH). `hermes kanban <verb>` from your terminal tool will fail in containerized backends because the CLI isn't installed there. When in doubt, use the tool.
+4. **`kanban_block` with a bare reason gets slow answers** — "stuck" gives the human no context. One sentence naming the specific decision you need, with the deeper context left as a `kanban_comment`.
+5. **Claiming `created_cards` ids you didn't capture** — The kernel verifies each id exists and was created by your profile; any phantom id blocks the completion. Only list ids captured from a successful `kanban_create` return value — never invent, paste, or reuse ids from prose or earlier runs.
+6. **Burying deliverable paths in `metadata` instead of `artifacts`** — The gateway notifier only reads the top-level `artifacts` list (best-effort fallback over summary text). Metadata paths are for downstream-worker bookkeeping, not delivery. Absolute paths only, and files must still exist at completion.
+7. **Using `delegate_task` as a substitute for `kanban_create`** — `delegate_task` is for short reasoning subtasks inside YOUR run; `kanban_create` is for cross-agent handoffs that outlive one API loop.
+8. **Calling `clarify` to ask the human a question** — You are running headless — there is no live user to answer. The call times out (~120s) and the task sits silently in `running` with no signal that it needs input. Use `kanban_comment` (context) + `kanban_block(reason=...)` (decision needed) instead.
+9. **Completing a task you didn't actually finish** — For most code-changing tasks, block with `reason="review-required: ..."` after dropping structured metadata in a comment, so a reviewer can approve+unblock or request changes. `kanban_complete` is for genuinely terminal work.
 
 ## CLI fallback (for scripting)
 
