@@ -1,13 +1,27 @@
 ---
 name: sparse-autoencoder-training
 description: Provides guidance for training and analyzing Sparse Autoencoders (SAEs) using SAELens to decompose neural network activations into interpretable features. Use when discovering interpretable features, analyzing superposition, or studying monosemantic representations in language models.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [sae-lens>=6.0.0, transformer-lens>=2.0.0, torch>=2.0.0]
 metadata:
   hermes:
     tags: [Sparse Autoencoders, SAE, Mechanistic Interpretability, Feature Discovery, Superposition]
+    trigger_conditions:
+      - "train a sparse autoencoder"
+      - "analyze SAE features"
+      - "find interpretable features in a language model"
+      - "study superposition in neural networks"
+      - "steer a model with SAE features"
+      - "SAELens dead features"
+      - "SAE reconstruction loss too high"
+      - "load pretrained SAE from HuggingFace"
+      - "mechanistic interpretability"
+      - "L0 metric SAE"
+      - "feature steering ablation"
+      - "TopK SAE architecture"
+      - "sae-lens tutorial"
 
 ---
 
@@ -36,6 +50,23 @@ Individual neurons in neural networks are **polysemantic** - they activate in mu
 - You need basic activation analysis → Use **TransformerLens** directly
 - You want causal intervention experiments → Use **pyvene** or **TransformerLens**
 - You need production steering → Consider direct activation engineering
+
+## When to Use
+
+- **Discovering interpretable features** — find monosemantic concepts in model activations with pre-trained SAEs
+- **Training a custom SAE** — configure and run SAELens training on GPT-2/Gemma class models
+- **Steering and ablation** — add/remove feature directions in the residual stream and observe generation changes
+- **Feature attribution** — identify which features drive a specific logit (e.g. why the model predicts "Paris")
+- **Debugging SAE quality** — diagnose dead features, poor reconstruction (low CE recovery), and uninterpretable features
+- **Safety analysis** — inspect deception, bias, or harmful-content features before deployment
+
+## Not For
+
+- **Basic activation analysis** → use `transformer-lens` directly (no SAE bottleneck needed)
+- **Causal intervention experiments** → use `pyvene` or TransformerLens hooks instead
+- **Production model steering at scale** → consider direct activation engineering (no SAE dependency)
+- **LLM fine-tuning / SFT** → use `fine-tuning-with-trl`, `axolotl`, or `unsloth` instead
+- **RL post-training** → use `grpo-rl-training` or `slime-rl-training` instead
 
 ## Installation
 
@@ -277,6 +308,12 @@ for idx, val in zip(top_features.indices, top_features.values):
 ```
 
 ## Common Issues & Solutions
+
+1. **Dead features** — SAE features that never activate waste capacity and distort L0. Enable L1 warm-up (`l1_warm_up_steps=1000`) and `use_ghost_grads=True` to revive them. Target <5% dead. Full recipe below.
+2. **Poor reconstruction (low CE recovery)** — L1 penalty too aggressive. Lower `l1_coefficient` (e.g. 5e-5) and/or raise `d_sae` capacity (16× d_model). Target >90% explained variance.
+3. **Uninterpretable features** — not sparse enough. Raise `l1_coefficient` (1e-4) or switch to TopK architecture with small `k` (e.g. 50) for exactly-k active features.
+4. **OOM during training** — reduce `train_batch_size_tokens` (2048), `store_batch_size_prompts` (4), and `n_batches_in_buffer` (8). Watch activation buffer memory.
+5. **Version mismatch** — SAELens pins `transformer-lens` and `torch`; a stale install breaks `SAE.from_pretrained` release lookups. Reinstall with `pip install -U sae-lens transformer-lens` and verify `sae_lens.__version__`.
 
 ### Issue: High dead feature ratio
 ```python

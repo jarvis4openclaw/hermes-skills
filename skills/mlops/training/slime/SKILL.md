@@ -1,13 +1,27 @@
 ---
 name: slime-rl-training
 description: Provides guidance for LLM post-training with RL using slime, a Megatron+SGLang framework. Use when training GLM models, implementing custom data generation workflows, or needing tight Megatron-LM integration for RL scaling.
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [sglang-router>=0.2.3, ray, torch>=2.0.0, transformers>=4.40.0]
 metadata:
   hermes:
     tags: [Reinforcement Learning, Megatron-LM, SGLang, GRPO, Post-Training, GLM]
+    trigger_conditions:
+      - "train GLM with RL"
+      - "GRPO training with slime"
+      - "Megatron-LM SGLang training"
+      - "post-train a reasoning model"
+      - "slime rollout batch size"
+      - "SGLang engine crash training"
+      - "weight sync timeout slime"
+      - "custom reward model RL"
+      - "async RL training"
+      - "multi-turn agentic RL training"
+      - "slime data buffer"
+      - "RL training OOM Megatron"
+      - "colocate training inference GPUs"
 
 ---
 
@@ -52,6 +66,22 @@ slime is an LLM post-training framework from Tsinghua's THUDM team, powering GLM
 │ - Weight sync to rollout│ │ - Multi-turn support        │
 └─────────────────────────┘ └─────────────────────────────┘
 ```
+
+## When to Use
+
+- **Training reasoning models with GRPO** — standard or async pipelines for GLM, Qwen3, DeepSeek V3/R1, Llama 3
+- **Megatron-LM native training** — full TP/PP/DP/SP parallelism with SGLang rollout serving
+- **Custom data workflows** — flexible data buffers with prompt generation, filtering, and off-policy reuse
+- **Multi-turn agentic RL** — tool-use / multi-step reasoning with a custom generate function
+- **Fault-tolerant long runs** — use-fault-tolerance, colocation, and async buffering for large jobs
+
+## Not For
+
+- **Enterprise-grade stability features** → use `miles` (slime's sibling framework)
+- **Flexible backend swapping** → use `verl`
+- **PyTorch-native abstractions** → use `torchforge`
+- **Lightweight single-GPU RL experiments** → use `grpo-rl-training` with TRL instead (far lower overhead)
+- **SAE / mechanistic interpretability work** → use `sparse-autoencoder-training` (SAELens) instead
 
 ## Installation
 
@@ -341,6 +371,12 @@ class RolloutDataSourceWithBuffer(RolloutDataSource):
 ---
 
 ## Common Issues and Solutions
+
+1. **SGLang engine crash mid-training** — enable `--use-fault-tolerance`, raise `--sglang-mem-fraction-static 0.85`, or halve `--rollout-batch-size` (16). Restart resumes from last checkpoint.
+2. **Weight sync timeout (training hangs after rollout)** — raise `--update-weights-interval 5` or use `--colocate` so weights never cross the network.
+3. **CUDA OOM in backward pass** — enable `--recompute-activations`, drop `--micro-batch-size 1`, or enable `--sequence-parallel`.
+4. **GPU idle during data fetch** — raise `--num-data-workers 4` or use `--streaming-data`.
+5. **Batch-size constraint violation** — remember `rollout_batch_size × n_samples_per_prompt = global_batch_size × num_steps_per_rollout` (32 × 8 = 256 × 1). Changing one without the others silently breaks the buffer contract.
 
 ### Issue: SGLang Engine Crash
 

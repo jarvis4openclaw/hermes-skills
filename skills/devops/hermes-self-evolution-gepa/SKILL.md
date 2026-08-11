@@ -403,6 +403,25 @@ The repo is a secondary copy for version control.
 
 46. **Spark `recipe-*` / `persona-*` skills are third-party and should be skipped as GEPA candidates** — The live tree contains `recipe-*` (e.g. `recipe-unsubscribe-audit`) and `persona-*` (e.g. `persona-project-manager`) skills that always show up in the 4-gap word-count scan (they lack trigger_conditions / When to Use / Not For / Pitfalls). They are Spark email personas with `metadata.requires: [use-spark]` and `accessLevel: triage` frontmatter — a third-party skill format, not Hermes-native, and deliberately minimal. Evolving them adds no reuse value and risks mangling the Spark-required frontmatter. Skip them in candidate selection (same category as `node_modules` vendored skills). Observed in Cycle 33 where they dominated the top of the 4-gap list.
 
+47. **`git checkout -b` is hard-blocked in the hermes-agent main checkout — use a worktree** — Hermes blocks `git checkout` (branch switch) in `~/.hermes/hermes-agent` ("would rewrite Hermes's live source checkout... Use a separate worktree or temporary clone"). The cycle's step 7 / Manual-Cycle step 2 assume `git checkout main && git checkout -b <branch>` works there; it does NOT. **Canonical path (Cycle 40, 2026-08-10):**
+   ```bash
+   cd ~/.hermes/hermes-agent
+   git worktree add /tmp/hermes-agent-wt-<N> -b "gepa/phase1-skill-optimization-cycle-$(date +%Y%m%d)-$(date +%H%M%S)" HEAD
+   # sync evolved skills into /tmp/hermes-agent-wt-<N>/skills/<path>/SKILL.md (mkdir -p first)
+   cd /tmp/hermes-agent-wt-<N> && git add <files> && git commit -m "..."
+   cd ~/.hermes/hermes-agent && git worktree remove /tmp/hermes-agent-wt-<N> --force
+   ```
+   The worktree starts at HEAD so `git diff --cached` / `git show HEAD:skills/...` work exactly as in the main checkout. Branch names remain unique per pitfall #21. Observed: Cycle 40 — `git checkout -b` blocked; worktree succeeded, commit `cb1b1eabc6`.
+
+48. **Sync step must byte-verify repo-vs-live parity, not just `cp`** — A cycle can evolve a skill in the live path and skip the repo sync (Cycle 39 left `weights-and-biases` at 1.0.1 in the repo while the live path was 1.1.0 with all gaps — the repo was stale for a full day). `cp` alone doesn't prove parity. **Canonical check after every sync:**
+   ```bash
+   diff <(git show HEAD:skills/<path>/SKILL.md) ~/.hermes/skills/<path>/SKILL.md | wc -l   # 0 = already in sync (skip)
+   # after cp: git diff --cached -- skills/<path>/SKILL.md | wc -l                        # >0 = change captured
+   ```
+   For NEW files (not in HEAD), `git show HEAD:...` fails → treat as new, `git add` + `git diff --cached` to capture. Observed: Cycle 40 — weights-and-biases repo diff showed exactly the evolved content missing (v1.1.0, trigger_conditions, Not For, 7 pitfalls); re-synced with the byte check.
+
+49. **Same-millisecond bulk mtimes = install/checkout artifact, not user work** — `find -newer` can surface 10+ skills touched within the same few milliseconds (e.g. 11 skills at `2026-08-09 20:09:26.537/541/545`). That's a bulk checkout/copy/skill-install, not 11 independent user edits. **Detection:** `find ... | xargs stat -c '%y' | sort | uniq -c | sort -rn` — a cluster of identical mtimes is the signature. **Action:** byte-diff those skills against `git show HEAD:skills/<path>/SKILL.md` (0 diff = baseline content, skip entirely — don't read all of them, don't evolve them). Evolving untouched upstream baseline adds noise, not value. Observed: Cycle 40 — 11 bulk-touch skills all byte-identical to HEAD; excluded from selection.
+
 ## When to Emit [SILENT]
 
 The self-evolution cron cycle should emit `[SILENT]` (suppress delivery) when **all** of the following are true:
