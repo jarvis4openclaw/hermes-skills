@@ -1,14 +1,28 @@
 ---
 name: node-inspect-debugger
 description: "Debug Node.js via --inspect + Chrome DevTools Protocol CLI."
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [debugging, nodejs, node-inspect, cdp, breakpoints, ui-tui]
-    related_skills: [systematic-debugging, python-debugpy, debugging-hermes-tui-commands]
+    related_skills: [systematic-debugging, python-debugpy]
+    trigger_conditions:
+      - "debug a Node.js application"
+      - "set breakpoints in Node"
+      - "node inspect"
+      - "Chrome DevTools Protocol debugging"
+      - "debug running Node process"
+      - "inspect Node variables"
+      - "step through Node code"
+      - "debug ui-tui component"
+      - "debug Ink component"
+      - "analyse Node heap or CPU profile"
+      - "debug vitest tests"
+      - "attach inspector to running Node"
+      - "CDP scripting for debugging"
 ---
 
 # Node.js Inspect Debugger
@@ -33,6 +47,15 @@ Two tools, pick one:
 - Perf: attach to a running process to capture a CPU profile or heap snapshot
 
 **Don't use for:** things `console.log` solves in under a minute. Breakpoint-driven debugging is heavier; use it when the payoff is real.
+
+## Not For
+
+- **Simple `console.log` debugging** — if you can identify the issue with a log statement in under a minute, use that instead. Breakpoint debugging is heavier and slower for trivial cases.
+- **Python debugging** — the Hermes TUI's `_SlashWorker` and PTY bridge are Python, not Node. Use `python-debugpy` skill for those.
+- **Production monitoring** — attaching the inspector to a production process introduces latency and security risks. Use APM tools or structured logging instead.
+- **Debugging minified/obfuscated production bundles** — source maps are often stripped; the breakpoints won't match the source positions you see.
+- **Analyzing Rust or Go binaries** — use platform-native debuggers (gdb, lldb, delve) instead.
+- **Debugging browser JavaScript** — use the browser's built-in DevTools (F12). This skill covers Node.js runtime debugging, not browser DOM debugging.
 
 ## Quick Reference: `node inspect` REPL
 
@@ -183,7 +206,7 @@ The TUI is built Ink + tsx. Two common scenarios:
 `ui-tui/package.json` has `npm run dev` (tsx --watch). Add `--inspect-brk` by running tsx directly:
 
 ```bash
-cd /home/bb/hermes-agent/ui-tui
+cd <hermes-agent-repo>/ui-tui
 npm run build    # produce dist/ once so transpile isn't needed on first load
 node --inspect-brk dist/entry.js
 # In another terminal:
@@ -227,7 +250,7 @@ Those are Python, not Node — use the `python-debugpy` skill for them. Only Nod
 ## Running Vitest Tests Under the Debugger
 
 ```bash
-cd /home/bb/hermes-agent/ui-tui
+cd <hermes-agent-repo>/ui-tui
 # Run a single test file paused on entry
 node --inspect-brk ./node_modules/vitest/vitest.mjs run --no-file-parallelism src/app/foo.test.tsx
 ```
@@ -259,7 +282,7 @@ await client.HeapProfiler.takeHeapSnapshot({ reportProgress: false });
 require('fs').writeFileSync('/tmp/heap.heapsnapshot', chunks.join(''));
 ```
 
-## Common Pitfalls
+## Pitfalls
 
 1. **Wrong line numbers in TS source.** Breakpoints hit the emitted JS, not the `.ts`. Either (a) break in the built `dist/*.js`, or (b) enable sourcemaps (`node --enable-source-maps`) and use `sb('src/app.tsx', N)` — but only with CDP clients that follow sourcemaps. `node inspect` CLI does not.
 
