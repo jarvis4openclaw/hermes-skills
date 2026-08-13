@@ -1,7 +1,7 @@
 ---
 name: duckduckgo-search
 description: Free web search via DuckDuckGo — text, news, images, videos. No API key needed. Prefer the `ddgs` CLI when installed; use the Python DDGS library only after verifying that `ddgs` is available in the current runtime.
-version: 1.3.0
+version: 1.4.0
 author: gamedevCloudy
 license: MIT
 metadata:
@@ -9,11 +9,41 @@ metadata:
     tags: [search, duckduckgo, web-search, free, fallback]
     related_skills: [arxiv]
     fallback_for_toolsets: [web]
+    trigger_conditions:
+      - "web search with no API key"
+      - "search the web for free"
+      - "DuckDuckGo search"
+      - "search without Firecrawl or API key"
+      - "ddgs CLI search"
+      - "news search free"
+      - "image search free"
+      - "video search free"
+      - "web_search unavailable fallback"
+      - "search results JSON parse"
+      - "DDGS python library"
+      - "search then extract page content"
+      - "DuckDuckGo rate limited empty results"
 ---
 
 # DuckDuckGo Search
 
 Free web search using DuckDuckGo. **No API key required.**
+
+## When to Use
+
+- `web_search` is unavailable, rate-limited, or unsuitable (for example when `FIRECRAWL_API_KEY` is not set)
+- User explicitly asks for DuckDuckGo results or wants a no-API-key search path
+- Quick text/news/image/video lookups where a snippet list is enough (no full page content needed)
+- Building a fallback search chain: built-in `web_search` → DuckDuckGo → direct extraction
+- Programmatic search inside `execute_code`/Python after verifying `ddgs` is installed in that runtime
+
+## Not For
+
+- Full page content extraction → use `web_extract`, browser tools, or `curl` after the search
+- Deep, configurable site-scoped search (Firecrawl-style) → use `web_search` with site: operators when available
+- Academic paper lookups → use `arxiv` skill (has paper-specific metadata)
+- Searches needing an API key, premium ranking, or guaranteed uptime → a keyed provider is more reliable
+- Browsing/interacting with result pages → browser skills, not a search API
 
 Preferred when `web_search` is unavailable or unsuitable (for example when `FIRECRAWL_API_KEY` is not set). Can also be used as a standalone search path when DuckDuckGo results are specifically desired.
 
@@ -225,12 +255,16 @@ Then extract the best URL with `web_extract` or another content-retrieval tool.
 
 ## Pitfalls
 
-- **`max_results` is keyword-only**: `ddgs.text("query", 5)` raises an error. Use `ddgs.text("query", max_results=5)`.
-- **Do not assume the CLI exists**: Check `command -v ddgs` before using it.
-- **Do not assume `execute_code` can import `ddgs`**: `from ddgs import DDGS` may fail with `ModuleNotFoundError` unless that runtime was prepared separately.
-- **Package name**: The package is `ddgs` (previously `duckduckgo-search`). Install with `pip install ddgs`.
-- **Don't confuse `-k` and `-m`** (CLI): `-k` is for keywords, `-m` is for max results count.
-- **Empty results**: If `ddgs` returns nothing, it may be rate-limited. Wait a few seconds and retry.
+1. **`max_results` is keyword-only** — `ddgs.text("query", 5)` raises an error. Use `ddgs.text("query", max_results=5)`.
+2. **Do not assume the CLI exists** — Check `command -v ddgs` before using it; if missing, install `pip install ddgs` or use built-in web/browser tools.
+3. **Do not assume `execute_code` can import `ddgs`** — `from ddgs import DDGS` may fail with `ModuleNotFoundError` unless that runtime was prepared separately. Verify import in the same runtime you will execute in.
+4. **Package name changed** — The package is `ddgs` (previously `duckduckgo-search`). Install with `pip install ddgs`; old docs referencing `duckduckgo-search` will mislead.
+5. **Don't confuse `-k` and `-m`** (CLI) — `-k` is for keywords, `-m` is for max results count. Mixing them returns wrong-size or empty result sets.
+6. **Empty results from rate limiting** — If `ddgs` returns nothing, it is likely throttled (DuckDuckGo blocks rapid or cloud-IP bursts). Wait a few seconds and retry, or vary the query; a short `sleep` between batched searches avoids the block.
+7. **Field variability across results/versions** — Return fields differ between result types and `ddgs` versions. Use `.get()` for optional fields to avoid `KeyError`; do not hardcode a field you have not seen.
+8. **Result snippets are not page content** — A search returns titles/URLs/snippets only. Do not quote from a snippet as if it were the full article; run `web_extract`/`curl` on the best URL first.
+9. **`-o json` needed for programmatic parse** — Without `-o json`, CLI output is human-formatted and fragile to parse. For pipelines, request JSON and parse with `jq` or Python.
+10. **Region/time filters silently narrow results** — `-r us-en` or `-t w` can return near-empty sets for niche queries. If results look thin, drop the filters before concluding the topic has no coverage.
 
 ## Validated With
 

@@ -1,7 +1,7 @@
 ---
 name: design-md
 description: Author/validate/export Google's DESIGN.md token spec files.
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
@@ -9,6 +9,22 @@ metadata:
   hermes:
     tags: [design, design-system, tokens, ui, accessibility, wcag, tailwind, dtcg, google]
     related_skills: [popular-web-designs, claude-design, excalidraw, architecture-diagram]
+    refero_styles: https://styles.refero.design
+    refero_mcp: https://refero.design/mcp
+    trigger_conditions:
+      - "create a DESIGN.md file"
+      - "design tokens spec"
+      - "lint design tokens"
+      - "WCAG contrast check color palette"
+      - "export design tokens to Tailwind"
+      - "export tokens to DTCG JSON"
+      - "design system spec file"
+      - "brand identity token file"
+      - "diff two DESIGN.md versions"
+      - "refero styles reference"
+      - "port style guide to agent format"
+      - "validate visual identity file"
+      - "consistent UI across projects"
 ---
 
 # DESIGN.md Skill
@@ -31,10 +47,13 @@ diffs versions for regressions, and exports to Tailwind or W3C DTCG JSON.
 - User asks to port a style guide into a format agents can consume
 - User wants contrast / WCAG accessibility validation on their color palette
 
-For purely visual inspiration or layout examples, use `popular-web-designs`
-instead. For *process and taste* when designing a one-off HTML artifact
-from scratch (prototype, deck, landing page, component lab), use
-`claude-design`. This skill is for the *formal spec file* itself.
+## Not For
+
+- Visual inspiration or layout examples → use `popular-web-designs` instead
+- One-off HTML artifact design (prototype, deck, landing page, component lab) with process/taste guidance → use `claude-design` instead
+- Hand-drawn or architecture diagrams → use `excalidraw` / `architecture-diagram` instead
+- Writing actual application code from the tokens → this skill only authors/validates the spec file
+- Non-Google token formats like Style Dictionary JSON only → use the DTCG export path if you must leave DESIGN.md
 
 ## File anatomy
 
@@ -127,9 +146,19 @@ if the value type is valid. Unknown component properties produce a warning.
 
 ## Workflow: authoring a new DESIGN.md
 
+0. **Source real design taste (Refero Styles).** Before inventing tokens, pull
+   a fitting reference from **Refero Styles** (`https://styles.refero.design`) —
+   a library of 2,000+ real-product `DESIGN.md` files (Apple, Linear, Raycast,
+   Airbnb, Claude, etc.) with colors/typography/spacing/components already
+   extracted. Use it to (a) find a style that matches the user's vibe, (b) lift
+   a concrete token starting point, and (c) avoid generic defaults. For
+   agent-driven search over real screens/flows, use the **Refero MCP**
+   (`https://refero.design/mcp`). User has explicitly asked to use this resource
+   for website work.
 1. **Ask the user** (or infer) the brand tone, accent color, and typography
    direction. If they provided a site, image, or vibe, translate it to the
-   token shape above.
+   token shape above. Anchor the translation in the Refero reference when one
+   was chosen.
 2. **Write `DESIGN.md`** in their project root using `write_file`. Always
    include `name:` and `colors:`; other sections optional but encouraged.
 3. **Use token references** (`{colors.primary}`) in the `components:` section
@@ -178,18 +207,16 @@ summary — WCAG findings are the most load-bearing reason to use the CLI.
 
 ## Pitfalls
 
-- **Don't nest component variants.** `button-primary.hover` is wrong;
-  `button-primary-hover` as a sibling key is right.
-- **Hex colors must be quoted strings.** YAML will otherwise choke on `#` or
-  truncate values like `#1A1C1E` oddly.
-- **Negative dimensions need quotes too.** `letterSpacing: -0.02em` parses as
-  a YAML flow — write `letterSpacing: "-0.02em"`.
-- **Section order is enforced.** If the user gives you prose in a random order,
-  reorder it to match the canonical list before saving.
-- **`version: alpha` is the current spec version** (as of Apr 2026). The spec
-  is marked alpha — watch for breaking changes.
-- **Token references resolve by dotted path.** `{colors.primary}` works;
-  `{primary}` does not.
+1. **Don't nest component variants** — `button-primary.hover` is wrong; `button-primary-hover` as a sibling key is right.
+2. **Hex colors must be quoted strings** — YAML will otherwise choke on `#` or truncate values like `#1A1C1E` oddly.
+3. **Negative dimensions need quotes too** — `letterSpacing: -0.02em` parses as a YAML flow — write `letterSpacing: "-0.02em"`.
+4. **Section order is enforced** — If the user gives you prose in a random order, reorder it to match the canonical list before saving; duplicate headings reject the file entirely.
+5. **`version: alpha` is the current spec version** (as of Apr 2026) — the spec is marked alpha — watch for breaking changes.
+6. **Token references resolve by dotted path** — `{colors.primary}` works; `{primary}` does not.
+7. **WCAG contrast failures are warnings, not errors** — `lint` exits 1 only on structural errors; a contrast warning still passes the CLI. Read the output and fix the palette yourself if accessibility matters.
+8. **`npx` first-run prompt** — `npx @google/design.md` without `-y` pauses for a download confirmation and can hang a headless run. Always use `npx -y`.
+9. **Refero Styles must not replace user taste** — Pull a reference for a starting point, but confirm brand tone/accent with the user; lifting a reference wholesale can clash with their actual brand.
+10. **Export redirections can capture stderr noise** — `npx ... export --format tailwind DESIGN.md > tailwind.theme.json` mixes CLI logs into the file. Use `2>/dev/null` or `--format json` when piping to a file.
 
 ## Spec source of truth
 
