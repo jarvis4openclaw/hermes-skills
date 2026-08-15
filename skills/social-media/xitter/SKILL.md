@@ -1,7 +1,7 @@
 ---
 name: xitter
-description: Interact with X/Twitter via the x-cli terminal client using official X API credentials. Use for posting, reading timelines, searching tweets, liking, retweeting, bookmarks, mentions, and user lookups.
-version: 1.0.0
+description: "Interact with X/Twitter via the x-cli terminal client using official X API credentials. Use for posting, reading timelines, searching tweets, liking, retweeting, bookmarks, mentions, and user lookups."
+version: 1.1.0
 author: Siddharth Balyan + Hermes Agent
 license: MIT
 platforms: [linux, macos]
@@ -12,6 +12,20 @@ metadata:
   hermes:
     tags: [twitter, x, social-media, x-cli]
     homepage: https://github.com/Infatoshi/x-cli
+    trigger_conditions:
+      - "post a tweet"
+      - "post to twitter"
+      - "search tweets"
+      - "read twitter timeline"
+      - "x-cli"
+      - "tweet reply"
+      - "quote tweet"
+      - "like retweet"
+      - "check mentions"
+      - "twitter bookmarks"
+      - "user timeline lookup"
+      - "twitter api credentials"
+      - "tweet metrics"
 ---
 
 # Xitter — X/Twitter via x-cli
@@ -26,6 +40,23 @@ This skill is for:
 - checking mentions and bookmarks
 
 This skill intentionally does not vendor a separate CLI implementation into Hermes. Install and use upstream `x-cli` instead.
+
+## When to Use
+
+- Posting tweets, replies, and quote tweets
+- Searching tweets and reading timelines
+- Looking up users, followers, and following
+- Liking and retweeting
+- Checking mentions and bookmarks
+- Pulling tweet metrics
+
+## Not For
+
+- **Nostr-to-X cross-posting automation** → `nostrx` (monitors Nostr and posts to X automatically)
+- **X likes data refresh / category filters on the personal site** → `x-likes-site-refresh-and-categorization`
+- **Downloading/transcribing videos from X posts** → `social-video-download`
+- **Extracting X/Twitter threads into numbered lists** → `social-thread-extraction`
+- **Data-broker opt-out scanning (uses Browserbase stealth browser instead)** → `unbroker`
 
 ## Important Cost / Access Note
 
@@ -188,11 +219,13 @@ Recommended defaults:
 
 ## Pitfalls
 
-- **Paid API access**: many failures are plan/permission problems, not code problems.
-- **403 oauth1-permissions**: regenerate the access token after enabling `Read and write`.
-- **Reply restrictions**: X restricts many programmatic replies. `tweet quote` is often more reliable than `tweet reply`.
-- **Rate limits**: expect per-endpoint limits and cooldown windows.
-- **Credential drift**: if you rotate tokens in `~/.hermes/.env`, make sure `~/.config/x-cli/.env` still points at the current file.
+1. **Paid API access** — many failures are plan/permission problems, not code problems. Check the X developer plan and quota before debugging the CLI.
+2. **403 oauth1-permissions** — regenerate the access token after enabling `Read and write` in the portal; the old token keeps the old permission set.
+3. **Reply restrictions** — X restricts many programmatic replies. `tweet quote` is often more reliable than `tweet reply`.
+4. **Rate limits** — expect per-endpoint limits and cooldown windows; batch reads with `--max` and space them out.
+5. **Credential drift** — if you rotate tokens in `~/.hermes/.env`, make sure `~/.config/x-cli/.env` still points at the current file (it is a symlink or copy).
+6. **Missing one of the five secrets** — upstream `x-cli` expects the full credential set; a missing value usually produces confusing auth or permission errors. Verify all five are present in the portal first.
+7. **Write actions need user confirmation** — posting, liking, retweeting, deleting are irreversible external actions. Always confirm the target tweet/user and intent before executing, per the agent workflow below.
 
 ## Notes
 
