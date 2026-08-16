@@ -1,17 +1,45 @@
 ---
 name: openclaw-plugin-management
 description: Manage OpenClaw plugins — install, configure, debug duplicates, and understand discovery/load order. Use when the user asks about plugin errors, duplicate plugins, plugin not loading, or plugin config.
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 metadata:
   hermes:
     tags: [openclaw, plugin, duplicate, discovery, bundledDiscovery, extensions]
+    trigger_conditions:
+      - "openclaw plugin error"
+      - "duplicate plugin id detected"
+      - "openclaw plugin not loading"
+      - "plugin not discovered"
+      - "bundledDiscovery compat allowlist"
+      - "openclaw extensions directory"
+      - "plugins.allow plugins.entries"
+      - "openclaw plugins list"
+      - "plugin registry refresh"
+      - "lossless-claw duplicate"
+      - "openclaw plugin config"
+      - "openclaw plugin install"
 ---
 
 # OpenClaw Plugin Management
 
 Use when debugging plugin load errors, duplicate plugin warnings, or plugin config issues.
+
+## When to Use
+
+- The user reports "duplicate plugin id detected" or a plugin warning in OpenClaw logs.
+- A plugin isn't loading, isn't discovered, or is silently missing from the registry.
+- The user asks how OpenClaw discovers plugins or what `bundledDiscovery` means.
+- You need to change plugin config (`plugins.allow`, `plugins.entries`, `plugins.slots`).
+- You installed a new plugin and it isn't showing up in `openclaw plugins list`.
+
+## Not For
+
+- OpenClaw gateway/config audit at the config-file level → use `openclaw-config-management` instead.
+- Installing/updating the OpenClaw CLI or its runtime → use the OpenClaw docs or `openclaw-config-management`.
+- Debugging a specific plugin's internal logic (not discovery/loading) → that belongs to the plugin's own docs.
+- Hermes (not OpenClaw) plugin management → Hermes skills/plugins live under `~/.hermes`, a different system.
 
 ## Plugin Discovery Paths
 
@@ -111,7 +139,23 @@ When a plugin is in `npm/package.json` dependencies, it gets installed to `node_
 See `references/duplicate-global-plugin-fix.md` for a complete walkthrough of fixing the `lossless-claw` duplicate plugin issue (2026-05-15), including the exact error, root cause analysis, and step-by-step fix.
 
 ## Pitfalls
-- Don't put a plugin in both `plugins.allow` and `plugins.entries` with `bundledDiscovery: "compat"`
-- Don't leave stale extension backups in `~/.openclaw/extensions/` — they get auto-scanned
-- Don't assume `enabled: false` in the registry prevents discovery — it still gets found, just not loaded
-- Always validate JSON after editing `openclaw.json` — a trailing comma breaks startup
+
+1. **Don't put a plugin in both `plugins.allow` and `plugins.entries` with `bundledDiscovery: "compat"`** — The plugin gets auto-discovered from `node_modules` AND explicitly registered, producing "duplicate plugin id detected". Keep it in `plugins.allow` for auto-discovery; remove the `plugins.entries` entry unless it carries custom config.
+
+2. **Don't leave stale extension backups in `~/.openclaw/extensions/`** — The extensions directory is auto-scanned for `openclaw.plugin.json`. A `.bak`/old copy there still registers. Move backups out of the directory.
+
+3. **Don't assume `enabled: false` in the registry prevents discovery** — Disabled plugins are still found, just not loaded. If the duplicate warning persists, the second copy is being discovered elsewhere, not re-enabled.
+
+4. **Always validate JSON after editing `openclaw.json`** — A trailing comma or unescaped character breaks startup. Run `python3 -c "import json; json.load(open('~/.openclaw/openclaw.json'))"` after every edit.
+
+5. **`bundledDiscovery: "allowlist"` changes the rules completely** — In allowlist mode only `plugins.allow` entries load; npm deps and extensions are NOT auto-discovered. If a plugin vanished after switching modes, add it to `plugins.allow`.
+
+6. **`plugins.entries.<id>` with only `enabled: true` is usually redundant** — With `compat` discovery the same plugin is auto-discovered from npm deps. Use `plugins.entries` only when you need to pass a config object or pin a slot.
+
+7. **The registry file is not the source of truth after manual moves** — After moving files in/out of `extensions/`, run `openclaw plugins registry --refresh` (or restart) so `installs.json` reflects the new layout.
+
+8. **Check ALL discovery sources before declaring a plugin missing** — Search `installs.json`, config, `npm/package.json`, and the extensions directory. A plugin can be installed in one source and configured in another; both must agree.
+
+9. **A plugin listed as a npm dependency AND in `plugins.entries` is a duplicate** — Choose one management path: npm deps (auto-discovery) or `plugins.entries` (explicit). Not both.
+
+10. **Verbose listing is the fastest triage** — `openclaw plugins list --verbose` shows discovery status per plugin. Run it before editing config; it pinpoints which source found (or missed) the plugin.
