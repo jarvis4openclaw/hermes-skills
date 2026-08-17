@@ -1,7 +1,7 @@
 ---
 name: jupyter-live-kernel
 description: "Iterative Python via live Jupyter kernel (hamelnb)."
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 platforms: [linux, macos, windows]
@@ -9,6 +9,19 @@ metadata:
   hermes:
     tags: [jupyter, notebook, repl, data-science, exploration, iterative]
     category: data-science
+    trigger_conditions:
+      - "iterative Python exploration"
+      - "stateful Python REPL"
+      - "inspect a DataFrame step by step"
+      - "run Jupyter notebook code"
+      - "variables persist between runs"
+      - "try and check Python interactively"
+      - "build up data analysis incrementally"
+      - "explore an API in a notebook"
+      - "long-running Python with state"
+      - "plot and iterate on data"
+      - "clean verification restart run all"
+      - "hamelnb or Jupyter kernel"
 ---
 
 # Jupyter Live Kernel (hamelnb)
@@ -32,6 +45,12 @@ state incrementally, explore APIs, inspect DataFrames, or iterate on complex cod
 1. **uv** must be installed (check: `which uv`)
 2. **JupyterLab** must be installed: `uv tool install jupyterlab`
 3. A Jupyter server must be running (see Setup below)
+
+## Not For
+- One-shot scripts that need Hermes tool access (web_search, file ops) → use `execute_code` instead.
+- Shell commands, builds, installs, git, or process management → use `terminal` instead.
+- Long-running training loops or batch jobs → run them as background processes, not through the kernel.
+- GPU-accelerated heavy compute → use the mlops skills (`vllm`, `axolotl`, etc.) rather than a notebook kernel.
 
 ## Setup
 
@@ -159,6 +178,19 @@ uv run "$SCRIPT" restart-run-all --path <notebook.ipynb> --save-outputs --compac
 
 8. **Occasional websocket timeouts** — some operations may timeout on first try,
    especially after a kernel restart. Retry once before escalating.
+
+## Pitfalls
+
+1. **First execution after server start may timeout** — the kernel needs a moment to initialize. If you get a timeout, just retry once before escalating.
+2. **The kernel Python is JupyterLab's Python** — packages must be installed in that environment, not the agent's venv. Install missing packages into the JupyterLab tool environment first (`uv tool install` or `pip` inside the Jupyter env).
+3. **`--compact` flag saves significant tokens** — always use it. JSON output can be very verbose without it.
+4. **For pure REPL use**, create a scratch.ipynb and don't bother with cell editing. Just use `execute` repeatedly.
+5. **Argument order matters** — subcommand flags like `--path` go BEFORE the sub-subcommand. E.g.: `variables --path nb.ipynb list` not `variables list --path nb.ipynb`.
+6. **If a session doesn't exist yet**, you need to start one via the REST API (see Setup section). The tool can't execute without a live kernel session.
+7. **Errors are returned as JSON** with traceback — read the `ename` and `evalue` fields to understand what went wrong.
+8. **Occasional websocket timeouts** — some operations may timeout on first try, especially after a kernel restart. Retry once before escalating.
+9. **A stale kernel holds the notebook lock** — if `execute` hangs after a long idle period, the kernel may have died. Check `uv run "$SCRIPT" servers --compact` and restart the session.
+10. **Long-running cells hit the 30s default timeout** — pass `--timeout 120` (or higher) for heavy computation; don't retry the same slow cell without raising the timeout.
 
 ## Timeout Defaults
 

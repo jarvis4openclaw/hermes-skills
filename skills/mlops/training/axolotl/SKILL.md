@@ -1,13 +1,24 @@
 ---
 name: axolotl
 description: Expert guidance for fine-tuning LLMs with Axolotl - YAML configs, 100+ models, LoRA/QLoRA, DPO/KTO/ORPO/GRPO, multimodal support
-version: 1.0.0
+version: 1.1.0
 author: Orchestra Research
 license: MIT
 dependencies: [axolotl, torch, transformers, datasets, peft, accelerate, deepspeed]
 metadata:
   hermes:
     tags: [Fine-Tuning, Axolotl, LLM, LoRA, QLoRA, DPO, KTO, ORPO, GRPO, YAML, HuggingFace, DeepSpeed, Multimodal]
+    trigger_conditions:
+      - "fine-tune an LLM with axolotl"
+      - "axolotl YAML config"
+      - "LoRA or QLoRA training"
+      - "DPO KTO ORPO GRPO training"
+      - "multimodal fine-tuning"
+      - "axolotl dataset format"
+      - "DeepSpeed or FSDP with axolotl"
+      - "train on HuggingFace model"
+      - "axolotl error or debugging"
+      - "context parallelism axolotl"
 
 ---
 
@@ -23,6 +34,14 @@ This skill should be triggered when:
 - Implementing axolotl solutions
 - Debugging axolotl code
 - Learning axolotl best practices
+
+## Not For
+
+- Non-Axolotl training stacks (TRL, unsloth, PEFT standalone) → use `fine-tuning-with-trl`, `unsloth`, or `peft-fine-tuning` instead.
+- RL post-training with GRPO → `grpo-rl-training` covers it if you are not committed to axolotl's YAML flow.
+- Serving or inference → use `serving-llms-vllm` or `llama-cpp` instead.
+- Dataset curation at scale → use `nemo-curator` instead.
+- Writing the training config from scratch without the axolotl CLI → this skill assumes the axolotl YAML contract; read the references first.
 
 ## Quick Reference
 
@@ -144,6 +163,19 @@ Add helper scripts here for common automation tasks.
 
 ### assets/
 Add templates, boilerplate, or example projects here.
+
+## Pitfalls
+
+1. **`context_parallel_size` must divide the GPU count** — a non-divisor value is rejected at launch. Check total GPUs before setting it (Pattern 3/4).
+2. **FSDP + LoRA/QLoRA conflict** — FSDP does not compose with PEFT LoRA in axolotl; pick one. Use DeepSpeed ZeRO-3 if you need both sharding and adapters.
+3. **`drop_long_seq` on batched data** — `utils.trainer.drop_long_seq(sample, ...)` expects a single example; batched samples are `list[list[int]]` and need per-example handling (Pattern 7).
+4. **`save_compressed: true` changes downstream artifacts** — output is vLLM/llmcompressor-compatible and ~40% smaller, but not a standard HF checkpoint; don't point vanilla transformers loaders at it (Pattern 5).
+5. **Integrations live anywhere on `PYTHONPATH`** — they don't need the `integrations/` folder, but they must be installed in the training env or axolotl silently ignores them (Pattern 6).
+6. **YAML overrides accumulate** — `axolotl` merges CLI `--config` with the base config; duplicate keys silently override. Diff the merged config before a long run.
+7. **NCCL tests before multi-GPU runs** — run `./build/all_reduce_perf -b 8 -e 128M -f 2 -g 3` first to rule out interconnect bottlenecks (Pattern 1).
+8. **Dataset format mismatches are the #1 silent failure** — validate a sample through the prompt strategy before launching; a wrong `input_ids` shape fails mid-epoch, not at startup.
+9. **Multimodal packs need matching processor** — the vision tower must match the base model's processor; a mismatch errors only on the first batch.
+10. **This skill is auto-generated from docs** — the references are the contract. When in doubt, read `references/api.md` or the matching tutorial rather than extrapolating.
 
 ## Notes
 

@@ -1,17 +1,39 @@
 ---
 name: mission-control-openclaw-websocket-401-troubleshooting
 description: Diagnose Mission Control "WebSocket error" incidents by separating OpenClaw gateway auth/pairing failures from Hermes API failures.
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent
 license: MIT
 metadata:
   hermes:
     tags: [mission-control, openclaw, websocket, 401, pairing, troubleshooting]
+    trigger_conditions:
+      - "Mission Control WebSocket error"
+      - "gateway channel status 401"
+      - "pairing required websocket"
+      - "openclaw gateway auth failure"
+      - "CONTROL_UI_DEVICE_IDENTITY_REQUIRED"
+      - "mission control 403 reverse proxy"
+      - "openclaw token mismatch"
+      - "websocket 1008 close code"
+      - "Mission Control can't connect"
+      - "MC gateway status failed"
 ---
 
 # Mission Control OpenClaw WebSocket 401 Troubleshooting
 
 Use when Mission Control shows generic WebSocket errors and you need exact root cause fast.
+
+## When to Use
+- Mission Control shows a generic "WebSocket error" banner and you need to know if OpenClaw or Hermes is at fault.
+- A 401 / `pairing required` close code appears after a token change or reinstall.
+- You switched Mission Control to a domain behind a reverse proxy and hit a 403.
+- Debugging `CONTROL_UI_DEVICE_IDENTITY_REQUIRED` on non-localhost origins.
+
+## Not For
+- Hermes API-only failures with no OpenClaw involvement → debug the Hermes gateway/service directly.
+- Mission Control feature development → this is a diagnostics runbook, not a code guide.
+- Generic Nginx/NPM configuration outside Mission Control → use `nginx-proxy-manager-native` or `caddy-proxy-management` instead.
 
 ## What this catches
 - OpenClaw gateway auth failures (`401 Unauthorized`)
@@ -103,7 +125,13 @@ Corroborating code/docs:
 - `docs/SECURITY-HARDENING.md` documents domain allowlisting via `MC_ALLOWED_HOSTS=mc.example.com,localhost`.
 
 ## Pitfalls
-- Don’t treat generic "WebSocket error" as transport failure first.
-- Don’t debug Hermes `/health` if OpenClaw `/api/channels/status` is 401.
-- Don’t assume missing connectivity when logs explicitly show `pairing required`.
-- Don’t assume all `403` responses come from Mission Control; verify whether reverse proxy generated the response first.
+1. **Don’t treat generic "WebSocket error" as transport failure first** — check the MC log line and the close code; `1008 pairing required` is config, not connectivity.
+2. **Don’t debug Hermes `/health` if OpenClaw `/api/channels/status` is 401** — the failing hop is MC → OpenClaw; a healthy Hermes API is a red herring.
+3. **Don’t assume missing connectivity when logs explicitly show `pairing required`** — the socket connected; auth failed.
+4. **Don’t assume all `403` responses come from Mission Control** — verify whether the reverse proxy generated the response first (openresty header = NPM).
+5. **A token fix alone may not fix the browser** — after repairing `OPENCLAW_GATEWAY_TOKEN`, the browser may still fail with `CONTROL_UI_DEVICE_IDENTITY_REQUIRED` because it's on a non-localhost origin; open MC over HTTPS or localhost.
+6. **`.env` edits require a restart to take effect** — a new token is only loaded on MC restart; restarting the frontend alone isn't enough.
+7. **Check `gateway.controlUi.allowedOrigins` after any host change** — an origin missing from the allowlist produces a confusing WS close without an HTTP error.
+8. **Token comment corruption in `.env`** — a truncated/merged token line (missing newline) silently produces a wrong token; inspect the raw file, not the rendered dashboard.
+9. **The 403 discriminator needs both probes** — direct backend with `Host` header AND public URL; a single probe can't attribute the block.
+10. **Search the exact error string in source** — `Gateway channel status failed with status ${res.status}` in `route.ts` proves MC→OpenClaw; don't guess code paths from UI text.
