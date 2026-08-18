@@ -2,7 +2,24 @@
 name: cloudflare-pages-static-site
 description: Deploy static sites to Cloudflare Pages with custom domains, auto-deploy from Git, and wrangler CLI.
 tags: [cloudflare, pages, static-site, deployment, dns, cdn]
-version: 1.0.0
+version: 1.1.0
+metadata:
+  hermes:
+    tags: [cloudflare, pages, static-site, deployment, dns, cdn]
+    trigger_conditions:
+      - "deploy static site to Cloudflare Pages"
+      - "Cloudflare Pages custom domain"
+      - "wrangler pages deploy"
+      - "pages.dev shows old content"
+      - "production branch mismatch Cloudflare"
+      - "CDN cache stale custom domain"
+      - "move domain between Pages projects"
+      - "auto-deploy static site from git push"
+      - "Cloudflare Pages DNS CNAME"
+      - "check Cloudflare Pages deployment status"
+      - "Cloudflare Pages build output directory"
+      - "create Cloudflare Pages project"
+      - "wallets.wahidsaleemi.net or bitcoin-fits deploy"
 ---
 
 # Cloudflare Pages Static Site Deployment
@@ -15,6 +32,13 @@ Deploy HTML/CSS/JS static sites to Cloudflare Pages with zero build steps, custo
 - Free hosting with global CDN + auto HTTPS
 - Custom domains already on Cloudflare DNS
 - Want auto-deploy on every `git push`
+
+## Not For
+
+- **Workers/APIs or dynamic backends** → use `cloudflare-temp-accounts` or a Workers skill; Pages is static-only.
+- **Deploying a generated site with a build step** (Next.js, Astro SSR) → use `cloudflare-pages-deploy` (build-aware) instead.
+- **Non-Cloudflare hosting** (VPS, StartOS, Nginx Proxy Manager) → use the relevant self-hosting skill.
+- **Debugging DNS/zone-level issues unrelated to Pages** → use `caddy-proxy-management` / `nginx-proxy-manager-native` as appropriate.
 
 ## Prerequisites
 
@@ -139,6 +163,19 @@ print(f'Status: {d[\"status\"]} | SSL: {d[\"validation_data\"][\"status\"]}')
 **Cause:** Custom domains route through CDN which caches HTML. Hash URLs bypass this cache layer.
 
 **Rule:** ALWAYS verify with the hash deploy URL first — it's ground truth. Custom domain stale = cache, not deploy failure. Hard refresh or wait 15 min.
+
+## Pitfalls (numbered)
+
+1. **Production branch mismatch (the silent-deploy trap)** — `git push` succeeds and a hash URL deploys, but `pages.dev`/custom domain still serve old content. Root cause: the Pages project's `production_branch` ≠ repo default branch. Always check via the API (`/projects/<name>` → `production_branch`) and PATCH it to match, then retrigger a deployment. See the CRITICAL PITFALL section above for exact curl commands.
+2. **CDN cache staleness on custom domains** — custom domains route through the CDN which caches HTML; the hash URL bypasses that layer. ALWAYS verify with the hash deploy URL first — it is ground truth. Custom-domain staleness = cache, not deploy failure. Hard refresh or wait ~15 min.
+3. **`npx wrangler` auto-install can fail on first run** — if `npx` prompts for install confirmation in a non-TTY/cron context it hangs. Run `npx --yes wrangler ...` or install wrangler explicitly (`npm i -g wrangler`) before scripting deploys.
+4. **API token scope mismatch** — the token needs BOTH `Account:Cloudflare Pages:Edit` AND `Zone:DNS:Edit`. A Pages-only token 403s on domain/DNS calls. Verify with `wrangler whoami` before starting.
+5. **CNAME not auto-created on cross-zone domains** — Cloudflare auto-creates the CNAME only when the domain is in the same zone as the project. For external zones, create the CNAME manually and point it at `<project>.pages.dev`.
+6. **`Authorization: Bearer ***` in pasted snippets** — masked tokens in docs/chat are display artifacts. Always read the real token from the env/credential store; never paste a masked value into a curl call.
+7. **Deployment `latest_stage.status` is not final** — a "success" stage can still be followed by a failed route/dns step. Check the domain `status` and `validation_data.status` too (see Verification section).
+8. **Production branch change needs a retrigger** — PATCHing `production_branch` does NOT redeploy automatically. POST a fresh deployment on the corrected branch afterward.
+9. **`git add` on the wrong branch** — the Pages Git integration deploys whatever branch is marked production. Committing to a feature branch will NOT update the live site; push to the production branch.
+10. **Domain move leaves a stale CNAME** — when moving a domain between projects, delete the old project's domain FIRST, then add to the new project, then update the CNAME. Leaving the old record pointing at the retired project keeps serving old content.
 
 ## References
 
