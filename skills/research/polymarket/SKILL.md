@@ -1,10 +1,25 @@
 ---
 name: polymarket
-description: "Query Polymarket: markets, prices, orderbooks, history."
-version: 1.0.0
+description: "Query Polymarket: markets, prices, orderbooks, history. Read-only public REST APIs (Gamma, CLOB, Data) with zero auth. Use when the user asks about prediction markets, betting odds, or event probabilities."
+version: 1.1.0
 author: Hermes Agent + Teknium
 tags: [polymarket, prediction-markets, market-data, trading]
 platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    trigger_conditions:
+      - "what are the odds of X happening"
+      - "prediction market prices"
+      - "polymarket market data"
+      - "betting odds event probabilities"
+      - "polymarket orderbook"
+      - "polymarket price history"
+      - "who's winning this political event market"
+      - "gamma api public-search"
+      - "clob token ids price query"
+      - "data-api trades open interest"
+      - "monitor prediction market movements"
+      - "polymarket volume in USDC"
 ---
 
 # Polymarket — Prediction Market Data
@@ -62,6 +77,13 @@ The Gamma API returns `outcomePrices`, `outcomes`, and `clobTokenIds` as JSON st
 inside JSON responses (double-encoded). When processing with Python, parse them with
 `json.loads(market['outcomePrices'])` to get the actual array.
 
+## Not For
+
+- **Placing trades / wallet auth** — this skill is read-only. Trading needs EIP-712 wallet signatures (out of scope).
+- **Crypto price data (BTC/ETH spot)** → use a dedicated market-data source, not Polymarket
+- **Historical long-term analytics beyond price history** → the Data API covers trades/open interest, not deep analytics
+- **Betting on other platforms** (Betfair, DraftKings, Kalshi) → each has its own API; Kalshi is a separate product
+
 ## Rate Limits
 
 Generous — unlikely to hit for normal usage:
@@ -69,9 +91,11 @@ Generous — unlikely to hit for normal usage:
 - CLOB: 9,000 requests per 10 seconds (general)
 - Data: 1,000 requests per 10 seconds (general)
 
-## Limitations
+## Pitfalls
 
-- This skill is read-only — it does not support placing trades
-- Trading requires wallet-based crypto authentication (EIP-712 signatures)
-- Some new markets may have empty price history
-- Geographic restrictions apply to trading but read-only data is globally accessible
+1. **Double-encoded JSON fields** — `outcomePrices`, `outcomes`, and `clobTokenIds` come back as JSON strings inside JSON. Parse with `json.loads(market['outcomePrices'])` or you'll format `"[0.80, 0.20]"` as literal text.
+2. **Empty price history on new markets** — some freshly created markets have no history yet; the Data API returns empty arrays. Report "no data yet" instead of inventing a trend.
+3. **Wrong API for the question** — search/discovery → Gamma; live price/orderbook → CLOB; trades/open interest → Data. Mixing them up returns 404s or empty payloads.
+4. **ConditionId vs clobTokenIds mixup** — `conditionId` is for price history; `clobTokenIds` (the [Yes, No] pair) is for price/book queries. Passing the wrong one returns nothing useful.
+5. **Treating price as fixed odds** — prices ARE probabilities and move; a 0.65 price is a live quote, not a guarantee. Don't present it as settled fact.
+6. **Geographic/trading restrictions on reads** — read-only data is globally accessible, but some markets may be geo-restricted; fall back to `web_search`/`web_extract` for those.
