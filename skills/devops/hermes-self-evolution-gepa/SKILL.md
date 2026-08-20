@@ -305,6 +305,7 @@ If masked: store a plaintext service key in `~/.hermes/evolution-creds.env` and 
 - **Cycle 26:** `references/gepa_cycle_26_report.md` — All word-count fallback: nostrx, yuanbao, exa-web-search-free, mcporter, code-review; avg +14.8
 - **Cycle 27:** `references/gepa_cycle_27_report.md` — 1 delta (youtube-content, partially evolved) + 4 word-count: ponytail, songsee, ponytail-review, nano-pdf; avg +14.8
 - **Cycle 46:** `references/gepa_cycle_46_report.md` — 4 delta + 1 word-count: hermes-desktop-app-interaction, debug-generated-code-errors, openclaw-plugin-management, weekly-health-report, blocked-page-recovery; avg +14.2
+- **Cycle 50:** `references/gepa_cycle_50_report.md` — 0 delta actionable (all 5 cycle-49 writes, already evolved) + 5 word-count: linux-lfs-build-troubleshooting, homelab-browser-backends, agent-wikis, windows-service-config, polymarket; avg +12.8. Pitfall: word-count scan false-positives on nonstandard headings (`## NOT for`, `## Critical pitfalls`) — read top candidates before selecting.
 
 ## Pitfalls
 
