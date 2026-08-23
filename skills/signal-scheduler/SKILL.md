@@ -1,7 +1,7 @@
 ---
 name: signal-scheduler
 description: Manage the Signal Scheduler — a web-based scheduler (Next.js 16) that posts messages to Signal groups and auto cross-posts to Nostr with opt-in LinkedIn cross-posting via Zernio API. Runs on Proxmox CT 200 at 192.168.100.47. Covers the web UI, background scheduler, signal-cli-rest-api Docker container, dual Nostr identity architecture, Blossom image uploads, LinkedIn integration, systemd services, and troubleshooting. Use when asked to inspect, fix, schedule posts, or configure anything on the Signal Scheduler.
-version: 1.0.0
+version: 1.1.0
 category: devops
 tags: [signal, nostr, linkedin, scheduler, cross-posting, proxmox, nextjs, docker, zernio]
 metadata:
@@ -58,6 +58,7 @@ Web-based scheduler for posting messages to Signal groups with automatic Nostr c
 | Nostr path | /opt/nostr-social |
 | Web UI port | 3000 |
 | Signal API port | 8080 |
+| Signal phone number | +17025768110 |
 | Scheduler npub | npub156spnmrgn4av0y6qkw3mjhlar0jpwe3ytmmu0guuxx66qsy5g8xqhzkzcm |
 | Repo | https://github.com/jarvis4openclaw/signal-scheduler.git |
 
@@ -73,6 +74,95 @@ Signal Scheduler CT (192.168.100.47)
 ```
 
 Database: SQLite at /opt/signal-scheduler/data/scheduler.db
+
+## Backup & Disaster Recovery
+
+The app code lives in a Git repo and is backed up by pushing to GitHub. The SQLite database is also tracked in git, so scheduled/sent posts are protected as long as the DB is committed and pushed. However, secrets and uploaded images are **not** backed up by default.
+
+### What is backed up
+
+| Asset | Backed up? | How |
+|---|---|---|
+| Source code (app/, scripts/, lib/, config) | ✅ | `git push origin main` |
+| SQLite DB (`data/scheduler.db`) | ✅ | Tracked in git; committed and pushed |
+| DB schema / empty template | ✅ | `data/schema.sql`, `data/scheduler.db.empty` |
+| `.env` secrets (Zernio key, Signal config) | ✅ | Gitignored, but copied nightly to NAS `/archive/vm-backups/signal-scheduler/signal-scheduler.env` |
+| Uploaded images (`uploads/`) | ✅ | Gitignored, but copied nightly to NAS `/archive/vm-backups/signal-scheduler/uploads/` |
+| Entire CT OS/state | Maybe | Verify Proxmox PBS/VM backup job separately |
+
+### Verify current backup state
+
+```bash
+# Git remote, last commit, uncommitted changes
+ssh root@192.168.100.47 'cd /opt/signal-scheduler && git remote -v && git log --oneline -3 && git status --short'
+
+# Confirm local DB matches GitHub
+ssh root@192.168.100.47 'cd /opt/signal-scheduler && ls -l data/scheduler.db && git ls-tree -r HEAD --long data/scheduler.db'
+
+# Download GitHub copy and compare counts/integrity
+ssh root@192.168.100.47 '
+  cd /opt/signal-scheduler &&
+  TOKEN=$(grep -oP "ghp_[A-Za-z0-9_]{36}" .git/config | head -1) &&
+  curl -s -L -H "Authorization: token $TOKEN" -H "Accept: application/vnd.github.v3.raw" \
+    https://api.github.com/repos/jarvis4openclaw/signal-scheduler/contents/data/scheduler.db \
+    -o /tmp/gh-scheduler.db &&
+  sqlite3 /tmp/gh-scheduler.db "PRAGMA integrity_check; SELECT status, COUNT(*) FROM posts GROUP BY status;"
+'
+
+# Scheduled-post horizon
+ssh root@192.168.100.47 'sqlite3 /opt/signal-scheduler/data/scheduler.db "SELECT MIN(scheduled_at), MAX(scheduled_at), COUNT(*) FROM posts WHERE status = '\''scheduled'\''"'
+
+# DB integrity check
+ssh root@192.168.100.47 'sqlite3 /opt/signal-scheduler/data/scheduler.db "PRAGMA integrity_check;"'
+```
+
+### Manual backup when you schedule far ahead
+
+After bulk-scheduling posts, commit and push immediately:
+
+```bash
+ssh root@192.168.100.47 '
+  cd /opt/signal-scheduler &&
+  git add data/scheduler.db &&
+  git commit -m "backup: update scheduler.db with posts through <month>" &&
+  git push origin main
+'
+```
+
+### Restoring the DB
+
+```bash
+# From GitHub
+ssh root@192.168.100.47 '
+  cd /opt/signal-scheduler &&
+  git checkout main -- data/scheduler.db &&
+  systemctl restart signal-scheduler signal-scheduler-web
+'
+```
+
+### Automated NAS backup
+
+A nightly cron job on CT 200 pushes a SQLite-safe snapshot, the `.env` file, and uploaded images to the NAS via rsync over SSH:
+
+```bash
+# Runs daily at 03:17
+/usr/local/bin/signal-scheduler-backup.sh
+```
+
+- Source CT: `192.168.100.47`
+- Target NAS: `192.168.100.33:/archive/vm-backups/signal-scheduler`
+- Keeps last 14 timestamped DB snapshots as `scheduler.db.YYYYMMDD-HHMMSS.bak`
+- Logs to `/var/log/signal-scheduler-backup.log`
+
+Because CT 200 is unprivileged, it cannot mount NFS/CIFS directly; the backup uses an ed25519 SSH key (`/root/.ssh/signal-scheduler-backup`). See `references/backup-disaster-recovery.md` for the full script and setup notes.
+
+### PBS / VM-level backups
+
+- `pvesh` and Proxmox config files are **not visible from inside the CT**.
+- To verify PBS scheduling/retention, inspect the Proxmox host directly (Datacenter → Backup).
+- Do not assume the CT is in a PBS job just because other CTs are; selection lists are per-job.
+
+See `references/backup-disaster-recovery.md` for the full audit recipe and recovery checklist.
 
 ## Services (systemd)
 
@@ -105,25 +195,42 @@ systemctl restart signal-scheduler-web
 | /opt/signal-scheduler/data/scheduler.db | SQLite database |
 | /opt/nostr-social/.nostr/secret.key | Scheduler's Nostr private key |
 
+## X / Twitter Cross-Posting (added 2026-08-22)
+
+Every post can also cross-post to **X/Twitter** via the official API v2 (OAuth 1.0a, HMAC-SHA1 signed inline in scheduler.ts — zero extra dependencies). Opt-in via the "Cross-post to X" checkbox.
+
+- Credentials live in `/opt/signal-scheduler/.env` (`X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`) — these are the @wahiddotmy free-tier creds originally from nostrX on CT 202.
+- Per-channel status: `x_status` column in posts table (`pending`/`sent`/`failed`/`disabled`). Same lifecycle as `linkedin_status`.
+- **Confirmed (2026-08-22):** X **discontinued the free tier entirely as of 2026-02-06** — pay-per-usage credits only ($0.015/post, $0.20/post with a link, $0.005/read). Free credits no longer exist and do not refresh; @wahiddotmy's 402 credits-depleted is permanent until credits are purchased. The X checkbox therefore defaults OFF in the UI, but all posting code stays ready if credits are ever bought.
+- **Zernio also supports platform 'twitter'** but bills per post — user rejected it; keep using direct API.
+- User-created app keys exist at CT 200 `/opt/.env` (valid consumer keys, HTTP 200 on request_token) but have NO paired user access tokens. Access tokens are app-bound; pairing nostrX's tokens to that app fails (code 37). Using that app would require the PIN-based OAuth authorize flow.
+
+## Quick Schedule UI (added 2026-08-22)
+
+New-post form has a Morning/Afternoon radio picker: Morning = 8:21 AM, Afternoon = 3:21 PM (local America/Chicago). The datetime defaults to the day AFTER the last already-scheduled post (or tomorrow if none), at the slot time. The field stays editable. Implemented client-side in page.tsx (`computeSlotDatetime`).
+
 ## How Cross-Posting Works
 
-Every Signal post is cross-posted. Signal and Nostr are always tried; LinkedIn is opt-in via checkbox:
+Signal + Nostr are always tried. LinkedIn and X are opt-in via checkbox:
 
 1. Post is due (scheduled_at <= now)
-2. `sendToSignal()` fires via signal-cli-rest-api
-3. `sendToNostr()` fires via `/opt/nostr-social/scripts/nostr.js`
-4. If `linkedin_status === 'pending'`, `postToLinkedIn()` fires via Zernio API
-5. If ANY succeed → post marked as "sent"
-6. Only if ALL fail → post marked as "failed"
+2. Image uploaded ONCE to Blossom, URL shared across channels
+3. `sendToSignal()` fires via signal-cli-rest-api
+4. `sendToNostr()` fires via nostr.js — message piped over STDIN via spawn (shell-injection-safe)
+5. If `linkedin_status === 'pending'`, `postToLinkedIn()` fires via Zernio API
+6. If `x_status === 'pending'`, `sendToX()` fires via Twitter API v2
+7. If ANY succeed → post marked "sent"; per-channel columns record each outcome
+8. Only if ALL fail → post marked "failed"
 
 ### LinkedIn Cross-Posting
 
 LinkedIn integration uses Zernio's unified social API. It is opt-in — users must check the "Cross-post to LinkedIn" checkbox when scheduling a post.
 
-- Endpoint: `POST https://api.zernio.com/linkedin/post`
-- Auth: `Bearer <ZERNI0_API_KEY>` from .env
-- Account ID: hardcoded `1580176163` in scheduler.ts
-- Image support: images uploaded to Blossom first, then passed as `image_url`
+- Endpoint: `POST https://api.zernio.com/v1/posts`
+- Auth: `Bearer <ZERNI0_API_KEY>` from .env (`ZERNI0` contains a zero)
+- Account ID: Zernio SocialAccount `_id` `6a26f3c92b2567671a2dcbf4` (Wahid X LinkedIn), override with `ZERNI0_LINKEDIN_ACCOUNT_ID`
+- Payload shape: `{ content, platforms: [{ platform: 'linkedin', accountId }], publishNow: true, mediaItems?: [{ type: 'image', url }] }`
+- Image support: images uploaded to Blossom first, then passed as `mediaItems`
 - Status tracking: `linkedin_status` column in DB (`pending` = will post, `disabled` = skip)
 
 ### Image Cross-Posting
@@ -184,16 +291,44 @@ ssh root@192.168.100.47 'systemctl restart signal-scheduler'
 
 ## Troubleshooting
 
-### Signal authentication broken
-Usually means signal-cli can't reach Signal servers. Update Docker image:
+### Signal authentication broken / account unregistered
+
+**Symptoms:** `/api/groups` returns 500, Docker logs show `WARN MultiAccountManager - Ignoring +17025768110: User is not registered. (NotRegisteredException)`, and `/v1/accounts` returns `[]`.
+
+**Root cause:** The account data in `/opt/signal-data/data/` becomes corrupted or the Signal registration expires. The `accounts.json` file may still list the account but signal-cli considers it unregistered.
+
+**Fix — clear and re-link:**
 ```bash
 ssh root@192.168.100.47
+
+# 1. Backup current data
+cp -r /opt/signal-data /opt/signal-data.bak.$(date +%Y%m%d-%H%M%S)
+
+# 2. Clear corrupted account data
+rm -rf /opt/signal-data/data/*
+
+# 3. Restart container to reinitialize
+docker restart signal-api
+sleep 5
+
+# 4. Verify clean state
+curl -s http://localhost:8080/v1/accounts  # Should return []
+```
+
+Then re-link via QR code:
+1. Open `http://192.168.100.47:8080/v1/qrcodelink?device_name=signal-scheduler` in a browser
+2. On your phone: Signal → Settings → Linked Devices → + → scan the QR code
+3. Wait ~10 seconds, then verify: `curl -s http://localhost:8080/v1/accounts` should return the account
+4. Test groups: `curl -s http://localhost:8080/v1/groups/+17025768110 | head -5`
+
+**If QR linking fails repeatedly:** The signal-cli-rest-api Docker image may be outdated. Update it:
+```bash
 docker pull bbernhard/signal-cli-rest-api:latest
 docker stop signal-api && docker rm signal-api
 docker run -d --name signal-api --restart unless-stopped \
   -p 8080:8080 -v /opt/signal-data:/home/.local/share/signal-cli \
   -e MODE=normal bbernhard/signal-cli-rest-api:latest
-# Then re-link: curl to /v1/qrcodelink, scan QR from phone
+# Then repeat the QR linking steps above
 ```
 
 ### Posts not sending
@@ -240,6 +375,7 @@ CREATE TABLE posts (
   scheduled_at TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'scheduled',
   linkedin_status TEXT DEFAULT 'pending',
+  x_status TEXT DEFAULT 'disabled',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   sent_at TIMESTAMP
 );
@@ -248,11 +384,13 @@ CREATE INDEX idx_posts_scheduled_at ON posts(scheduled_at);
 CREATE INDEX idx_posts_status ON posts(status);
 ```
 
-`linkedin_status`: `'pending'` = will cross-post to LinkedIn, `'disabled'` = skip LinkedIn.
+`linkedin_status`: `'pending'` = will cross-post to LinkedIn, `'disabled'` = skip.
+`x_status`: same lifecycle for X/Twitter. Historical rows default to `'disabled'`; new UI posts default to `'pending'`.
 
 ## References
 
 - `references/linkedin-integration.md` — Full walkthrough of LinkedIn cross-posting implementation (files changed, deploy sequence, lessons)
+- `references/backup-disaster-recovery.md` — Backup/DR audit commands, NAS backup script, restore procedures, and PBS verification notes
 
 ## Pitfalls
 
@@ -268,3 +406,6 @@ CREATE INDEX idx_posts_status ON posts(status);
 10. **LinkedIn account ID is hardcoded** — `1580176163` is used directly in scheduler.ts. If Zernio changes the account or the user switches accounts, this must be updated manually. No env var exists for it.
 11. **Posts with failed LinkedIn still show as "sent"** — The cross-post logic marks a post "sent" if ANY channel succeeds. A post that went to Signal and Nostr but failed LinkedIn will show status "sent" — check `linkedin_status` separately for LinkedIn-specific failures.
 12. **Scheduler runs as root** — All paths are absolute, no user context needed. Commands like `systemctl restart signal-scheduler` work without `sudo`.
+15. **CT 200 is unprivileged — cannot mount NFS/CIFS from inside** — File-system mounts fail with "Operation not permitted". Use rsync over SSH for backups, or add a bind mount on the Proxmox host.
+16. **Always use SQLite `.backup` for live DB copies** — Copying or rsyncing `scheduler.db` while the scheduler service is running can corrupt it or produce a 0-byte file. Use `sqlite3 /opt/signal-scheduler/data/scheduler.db ".backup /tmp/scheduler.db"` and then rsync the backup copy.
+17. **Browser extension console errors are noise** — When the user reports "console errors" on the Signal Scheduler, most will be from MetaMask or similar wallet extensions (`contentscript.js`, `ObjectMultiplex`, `app-init-liveness`, `background-liveness`, `MaxListenersExceededWarning`). These are irrelevant. Focus on actual HTTP errors (500 on `/api/groups`, `/api/posts`) and React crashes caused by those errors (e.g., `n.map is not a function` when the API returns an error object instead of an array).

@@ -44,12 +44,12 @@ metadata:
 
 ## Not For
 
-- **Posting directly to X/Twitter** → use `xitter` or `xurl` for direct X posting
-- **Posting to Nostr** → use `nostrx` (the Nostr CLI) for direct Nostr posting; nostrX only reads Nostr
-- **Signal + Nostr scheduling** → use `signal-scheduler` for scheduling posts to both Signal and Nostr
-- **Twitter/X account management (reading, DMs)** → use `xitter` for full X/Twitter account operations
-- **General debugging of CT 202 or Proxmox infrastructure** → use `proxmox-host-management` for host-level issues
-- **Bird CLI operations (likes, bookmarks)** → use `xitter` or `xurl` — the `bird` CLI on the host is read-only
+- **Posting directly to X/Twitter** → use `xitter` or `xurl` instead
+- **Posting to Nostr** → use `nostrx` (the Nostr CLI) instead; nostrX only reads Nostr
+- **Signal + Nostr scheduling** → use `signal-scheduler` instead
+- **Twitter/X account management (reading, DMs)** → use `xitter` instead
+- **General debugging of CT 202 or Proxmox infrastructure** → use `proxmox-host-management` instead
+- **Bird CLI operations (likes, bookmarks)** → use `xitter` or `xurl` instead — the `bird` CLI on the host is read-only
 
 **Location:** `/root/nostrX/nostrx.py`
 **State file:** `/root/nostrX/sync_state.json`
@@ -74,11 +74,17 @@ Nostr relays (wss://relay.damus.io, wss://nos.lol, etc.)
 - Skips posts with media URLs in content (extracts image URLs, uploads separately)
 - 1-second delay between posts to avoid rate limiting
 
+## Hardening (2026-08-22)
+
+- Cron now runs `/usr/bin/python3 /root/nostrX/nostrx-wrapper.py` — a flock lockfile wrapper (`/root/nostrX/nostrx.lock`) that prevents overlapping runs, and rotates `nostrx.log` at 5MB (to `.1`).
+- **Duplicate risk with scheduler — RESOLVED (2026-08-22):** scheduler npub (npub156spnm...) removed from `NOSTR_NPUBS`; only the agent npub (npub1l5khqwq...) is monitored. The scheduler on CT 200 has X-posting code ready but X's free tier is gone (see signal-scheduler skill), so it stays off unless credits are purchased.
+- Free-tier credits no longer exist at all (X went pay-per-usage 2026-02-06) → every write fails with 402 indefinitely; nostrX retries the same posts each cron tick (this produced an 18.9MB log). Do NOT expect backlog draining; consider disabling nostrX entirely or buying credits.
+
 ## Common Tasks
 
 ### Run manually
 ```bash
-ssh root@192.168.100.54 "cd /root/nostrX && source venv/bin/activate && python nostrx.py"
+ssh root@192.168.100.54 "/usr/bin/python3 /root/nostrX/nostrx-wrapper.py"
 ```
 
 ### View recent logs
