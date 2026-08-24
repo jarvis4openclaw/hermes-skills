@@ -4,7 +4,7 @@ description: >
   Run GEPA (Genetic Evolution of Prompt Artifacts) skill optimization cycles on Hermes skills.
   Use when asked to improve skills, run self-evolution, optimize prompts, or audit skill quality.
   The pipeline lives at ~/hermes-agent-self-evolution. DSPy 3.1.3 is installed in its .venv.
-version: 1.12.0
+version: 1.13.0
 metadata:
   hermes:
     tags: [self-evolution, GEPA, DSPy, skills, optimization]
@@ -12,9 +12,31 @@ metadata:
       - "Run a GEPA / self-evolution cycle"
       - "Optimize skills / audit skill quality"
       - "Improve skill reliability"
+      - "self-evolution"
+      - "gepa cycle"
+      - "evolve a skill"
+      - "improve a skill"
+      - "audit skill quality"
+      - "run skill optimization"
+      - "reliability of skills"
 ---
 
 # Hermes Self-Evolution — GEPA Pipeline
+
+## When to Use
+
+- A scheduled self-evolution cron fires (daily cycle) or the user asks to "run a GEPA cycle"
+- Skills are failing in real use (Dojo flags actual tracked failures) and need reliability fixes
+- New or heavily-modified skills since the last cycle need the 4-gap template applied
+- A skill audit is requested: which skills are mature, which are missing triggers/Pitfalls
+- The agent needs a structured, repeatable improvement loop instead of ad-hoc prompt tweaks
+
+## Not For
+
+- One-off manual edits to a single skill — just edit the file directly and sync; don't spin up the full pipeline → use `hermes-skills-optimization` for tree-level audits instead
+- Auditing which skills are enabled/enabled-by-default across profiles (that's a tree inventory, not content evolution) → use `hermes-skills-optimization` instead
+- Writing a brand-new skill from scratch — GEPA evolves existing skills; authoring is a different workflow → use `hermes-agent-skill-authoring` instead
+- Optimizing skills that are already fully evolved (all 4 gaps present, ≥10 numbered pitfalls) — the fast path exists precisely to skip these; don't re-edit them
 
 ## Environment
 
@@ -423,6 +445,12 @@ The repo is a secondary copy for version control.
    For NEW files (not in HEAD), `git show HEAD:...` fails → treat as new, `git add` + `git diff --cached` to capture. Observed: Cycle 40 — weights-and-biases repo diff showed exactly the evolved content missing (v1.1.0, trigger_conditions, Not For, 7 pitfalls); re-synced with the byte check.
 
 49. **Same-millisecond bulk mtimes = install/checkout artifact, not user work** — `find -newer` can surface 10+ skills touched within the same few milliseconds (e.g. 11 skills at `2026-08-09 20:09:26.537/541/545`). That's a bulk checkout/copy/skill-install, not 11 independent user edits. **Detection:** `find ... | xargs stat -c '%y' | sort | uniq -c | sort -rn` — a cluster of identical mtimes is the signature. **Action:** byte-diff those skills against `git show HEAD:skills/<path>/SKILL.md` (0 diff = baseline content, skip entirely — don't read all of them, don't evolve them). Evolving untouched upstream baseline adds noise, not value. Observed: Cycle 40 — 11 bulk-touch skills all byte-identical to HEAD; excluded from selection.
+
+52. **The state.db `sessions` table is the real session index — `sessions.json` is a legacy mirror** — Fast-path checks that rely on `~/.hermes/sessions/sessions.json` see stale data (it maps routing keys, not sessions, and is explicitly a "LEGACY MIRROR"). Query `~/.hermes/state.db` (`sqlite3` or Python) — `SELECT id, source, started_at, last_activity_at, title FROM sessions WHERE last_activity_at > <cycle-ts>` gives the true recent activity. Observed Cycle 54: the mirror showed nothing newer than Aug 22 while state.db showed the current cron + nightly + redeem sessions.
+
+53. **Delta-driven mtime scan must exclude the live path's own bulk installs** — `find -newer <start-ts>` can surface skills touched by bulk skill-installs/checkouts (same-ms clusters, pitfall #49) AND curator `create`/`write_file` writes that are already fully formed. Always cross-check with `~/.hermes/skills/.curator_ledger.jsonl`: an `agent`/`curator` create with a `before: []` entry is a brand-new skill, and `write_file` entries that already carry full sections are "found but already evolved". Observed Cycle 54: `bitcoin-script-engineering` (curator-created, 6 triggers but no WtU/NF) was actionable; `blockclock-adapter-packaging` (agent-created, already had WtU + "When Not to Use") needed only Not For standardization + triggers + numbered pitfalls.
+
+54. **Word-count scan thresholds mask actionable candidates** — the canonical ≥3-missing scan (all 4 gaps) misses skills that already have triggers + Pitfalls but lack `When to Use`/`Not For` — the two cheapest, highest-value additions (+2-3 trigger_clarity each). Run a second scan at `missing >= 2` and inspect the largest candidates by byte count; the top of that list is where the real remaining delta lives. Observed Cycle 54: the ≥3 scan returned only 4 junk candidates, while the ≥2 scan surfaced 40+ real skills (simplify-code, xlsx, cloudflare-pages-deploy, nginx-proxy-manager-native, ...) with genuine gaps.
 
 ## When to Emit [SILENT]
 
