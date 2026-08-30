@@ -1,7 +1,7 @@
 ---
 name: hermes-memory-provider-management
 description: "Use this skill for ANY memory write — always pick mnemosyne_remember, never the memory() tool. Also covers installing, configuring, and migrating between Hermes memory providers (Total Recall is now retired in favor of Mnemosyne), flat-file cleanup, and troubleshooting tool registration."
-version: 1.0.0
+version: 1.1.0
 author: hermes
 tags:
   - hermes
@@ -12,6 +12,25 @@ tags:
   - continuity
   - flat-file
   - cleanup
+metadata:
+  hermes:
+    trigger_conditions:
+      - "save this to memory"
+      - "remember this"
+      - "store this fact"
+      - "memory provider"
+      - "mnemosyne"
+      - "total recall"
+      - "memory tool"
+      - "migrate memory"
+      - "switch memory provider"
+      - "flat file cleanup"
+      - "memory()"
+      - "which memory system"
+      - "memory not working"
+      - "memory write"
+      - "honcho memory"
+      - "memory status"
 ---
 
 # Hermes Memory Provider Management
@@ -24,7 +43,12 @@ Install, configure, and migrate between Hermes memory providers.
 - Setting up or switching between Hermes memory providers
 - Verifying memory integrity after migration or cleanup
 - Troubleshooting memory provider installation or tool registration
-
+- Debugging why `mnemosyne_recall` returns nothing for a fact you just wrote
+## Not For
+- **Searching/recalling existing memories** → recall is a direct tool call (`mnemosyne_recall`), not a skill task; use the tool directly
+- **Debugging the Honcho server itself (the CT/API side)** → this skill covers the Hermes-side provider plugin; the server logs live on the Honcho container (`honcho-ai` on the VM)
+- **Auditing which skills are enabled across profiles** → use `hermes-skills-optimization` instead
+- **General self-evolution / GEPA cycles** → use `hermes-self-evolution-gepa` instead
 ## Critical Rule: Tool Selection — mnemosyne_remember, Not memory()
 
 This is the single most important rule in this skill.
