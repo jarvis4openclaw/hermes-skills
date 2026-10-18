@@ -1,7 +1,7 @@
 ---
 name: blogwatcher
 description: Monitor blogs and RSS/Atom feeds for updates using the blogwatcher-cli tool. Add blogs, scan for new articles, track read status, and filter by category.
-version: 2.0.0
+version: 2.1.0
 author: JulienTant (fork of Hyaxia/blogwatcher)
 license: MIT
 metadata:
@@ -15,7 +15,12 @@ metadata:
       - user wants to see or list unread articles
       - user is importing or managing OPML subscriptions
       - user asks to mark articles as read or clean up their feed backlog
-      - phrases: "check my feeds", "any new posts", "track this blog", "mark as read", "unread articles", "RSS"
+      - "check my feeds"
+      - "any new posts"
+      - "track this blog"
+      - "mark as read"
+      - "unread articles"
+      - "RSS"
 prerequisites:
   commands: [blogwatcher-cli]
 ---
@@ -23,6 +28,24 @@ prerequisites:
 # Blogwatcher
 
 Track blog and RSS/Atom feed updates with the `blogwatcher-cli` tool. Supports automatic feed discovery, HTML scraping fallback, OPML import, and read/unread article management.
+
+## When to Use
+
+- Tracking one or more blogs / RSS / Atom feeds and being told when something new appears.
+- Running a recurring "any new posts?" check from cron or a scheduled job.
+- Bulk-importing subscriptions from an OPML export (Feedly, Inoreader, NewsBlur).
+- Filtering a reading backlog by blog or category, and marking items read/unread.
+- Adding a site that has no discoverable feed (HTML scraping fallback via `--scrape-selector`).
+- Keeping a persistent local article database (SQLite) that survives across runs.
+
+## Not For
+
+- **One-off web or news lookups where no feed is tracked yet** → use `exa-web-search-free` or `duckduckgo-search` instead.
+- **Watching a competitor's site for announcements or positioning changes** → use `competitor-news-monitor` instead.
+- **Extracting numbered long-form X/Twitter threads** → use `social-thread-extraction` instead.
+- **Transcribing audio or video content** → use `social-video-transcription` (or `social-media-transcription`) instead.
+- **Domain, WHOIS, and infrastructure intel gathering** → use `domain-intel` instead.
+- **Maintaining a curated personal knowledge base rather than a feed reader** → use `personal-wiki-ops` instead.
 
 ## Installation
 
