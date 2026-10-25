@@ -4,7 +4,7 @@ description: >
   Run GEPA (Genetic Evolution of Prompt Artifacts) skill optimization cycles on Hermes skills.
   Use when asked to improve skills, run self-evolution, optimize prompts, or audit skill quality.
   The pipeline lives at ~/hermes-agent-self-evolution. DSPy 3.1.3 is installed in its .venv.
-version: 1.13.0
+version: 1.14.0
 metadata:
   hermes:
     tags: [self-evolution, GEPA, DSPy, skills, optimization]
@@ -330,6 +330,7 @@ If masked: store a plaintext service key in `~/.hermes/evolution-creds.env` and 
 - **Cycle 58:** `references/gepa_cycle_58_report.md` — Fast path did NOT trigger (the Sep 20 02:24 cron run crashed: 420 s terminal timeout + blocked `find -delete`, no report written); Dojo empty (healthy); delta 32 candidates → 25 already evolved → 5 selected; avg +9.2. New rules: section-scoped renumbering, branch-suffix fix when the base name is date-stamped. Predecessor of Cycle 58 (2026-09-13-20260907 branch)
 - **Cycle 60:** `references/gepa_cycle_60_report.md` — fast path did NOT trigger (7 days since Cycle 59 + Oct 5–10 user sessions); Dojo empty (healthy); delta 31 → 26 already evolved → 1 actionable + 4 word-count; Television pack now a standing third-party exclusion; avg +7.8
 - **Cycle 61:** `references/gepa_cycle_61_report.md` — fast path did NOT trigger (7 days since Cycle 60 + Oct 12–17 user sessions); Dojo empty (healthy); delta 14 → 12 already evolved → 2 actionable + 3 word-count; avg +8.2. **New rule:** validate every evolved frontmatter with `yaml.safe_load` — `blogwatcher` had 12 triggers that were ALL silently dropped by a pre-existing malformed YAML entry, invisible to `grep -c`. Third-party exclusions now: Television pack, `taproot-skill/*`, Spark `recipe-*`/`persona-*`.
+- **Cycle 62:** `references/gepa_cycle_62_report.md` — Fast path did NOT trigger (7 days since Cycle 61 + Oct 19–24 user sessions); Dojo empty (healthy); delta 16 → 14 already evolved → 2 actionable + 3 word-count; avg +11.4. **New rule:** `patch`/`read_file`/`write_file`/`search_files` are absent in cron — use `terminal` + python heredoc with asserts (pitfall #58). Exclusions widened to author-attributed vendored packs (`baoyu-*`, `pixel-art`, `sonoscli`).
 - **Cycle 50:** `references/gepa_cycle_50_report.md` — 0 delta actionable (all 5 cycle-49 writes, already evolved) + 5 word-count: linux-lfs-build-troubleshooting, homelab-browser-backends, agent-wikis, windows-service-config, polymarket; avg +12.8. Pitfall: word-count scan false-positives on nonstandard headings (`## NOT for`, `## Critical pitfalls`) — read top candidates before selecting.
 
 ## Pitfalls
@@ -458,6 +459,8 @@ The repo is a secondary copy for version control.
 55. **Bulk renumbering must be scoped to the target section — and asserts must run before the write** — A whole-file pass like `for ln in s.split("\n"): if ln.startswith("- **"): n+=1` also renumbers bullets in unrelated sections. Observed Cycle 58: `lightning-gift-app`'s header bullets became `1./2./3.` and its "Seeding dev data" list carried on the pitfall counter at `21-26`; `web-fonts-self-hosting`'s newly appended bullets stayed unnumbered because the pass ran *before* the append. **Fix:** slice first — `start = s.index("\n## Pitfalls\n")`, `end = s.find("\n## ", start + 1)`, and treat `-1` as end-of-file (Pitfalls is often the last section) — renumber only inside that slice, then assert the parsed item count. Keep every mutation in memory and write once at the end: an assert that fires mid-script then leaves the file untouched, which is exactly what stopped the broken numbering from shipping.
 
 56. **The `$BRANCH` MAX computation reads the date out of date-stamped branch names** — `MAX=$(git branch -a | grep -oE "${BASE}-[0-9]+" | grep -oE '[0-9]+$' | sort -n | tail -1)` matches `gepa/phase1-skill-optimization-cycle-20260913` and returns `20260913`, so the next branch came out as `…-cycle-20260920-20260914`. Uniqueness still holds (that is the guard's point), but the suffix is meaningless and unreadable. **Fix:** when the base name is date-stamped, use the cycle number — `BRANCH="${BASE}-$(date +%Y%m%d)-<cycle-N>"` — and keep the `git show-ref --quiet` collision guard. Cycle 58 used `gepa/phase1-skill-optimization-cycle-20260920-58`.
+
+58. **The `patch` tool is NOT available in cron mode — only `terminal` is** — during the scheduled cycle the `patch` tool is rejected outright ("'patch' is not available in this execution context"), and `read_file`/`write_file`/`search_files` are likewise absent from the cron toolset. Do not burn a call on `patch` (Strategy A documentation still says to use it — that guidance holds only in interactive sessions). **Canonical cron-safe edit path:** write a `python3 <<'PY' … PY` heredoc via `terminal` that does exact `assert anchor in s` replacements and a single `p.write_text(s)` at the end. The asserts make it fail-safe: a bad anchor leaves the file untouched. Keep each heredoc payload under ~8KB and split per section (frontmatter, When to Use/Not For, Pitfalls). Observed Cycle 62 — the first `patch` call was rejected before any content changes.
 
 ## When to Emit [SILENT]
 
