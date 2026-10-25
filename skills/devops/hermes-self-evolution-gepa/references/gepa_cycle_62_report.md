@@ -1,7 +1,7 @@
 # GEPA Self-Evolution Cycle 62
 
 **Date:** 2026-10-25 02:0x CDT
-**Branch:** `gepa/phase1-skill-optimization-cycle-20261025-62` (both repos) · hermes-agent commit `1ccd3d7424`
+**Branch:** `gepa/phase1-skill-optimization-cycle-20261025-62` (both repos) · hermes-agent commits `1ccd3d7424` → `651c14f91f` (branch tip `55042f75a7`)
 **Mode:** LLM-as-Judge, Strategy A (direct parent execution) — no live GEPA API run
 **Predecessor:** Cycle 61 (2026-10-18)
 
@@ -101,7 +101,7 @@ Live path → repo path → `~/hermes-skills`, byte-verified with sha256 on all 
 | `patches/slowbooks-api/gepa-cycle-62.patch` | 145 |
 | `patches/social-thread-extraction/gepa-cycle-62.patch` | 138 |
 | `patches/email-inbox-triage/gepa-cycle-62.patch` | 77 |
-| `patches/hermes-self-evolution-gepa/gepa-cycle-62.patch` | 502 |
+| `patches/hermes-self-evolution-gepa/gepa-cycle-62.patch` | 662 (SKILL.md + cycle-62 reference) |
 
 No patch was 0 lines; all were generated *after* the sync (pitfall #7, #40).
 
@@ -129,6 +129,22 @@ No patch was 0 lines; all were generated *after* the sync (pitfall #7, #40).
 4. **self-evolution repo `main` is stale** — `main` sits at `402febc` while the cycle-61 commit
    `6ff9408` lives on its own branch. The cycle-62 branch was therefore cut from the *current* HEAD,
    not from `main`, so no cycle report is lost. Worth fast-forwarding `main` in a future cycle.
+
+## Post-run verification
+
+All six evolved skills re-verified after every write: YAML `yaml.safe_load` parses, `trigger_conditions`
+non-zero, `## Pitfalls` numbered items present, and **three-way sha256 parity** between the live path,
+the hermes-agent repo copy and the `~/hermes-skills` backup. The first parity pass caught a real miss —
+`hermes-self-evolution-gepa` had been synced into the worktree but never into the main checkout's
+`skills/` directory — which was fixed and re-verified (all three copies now `9f0f01bd2223`).
+
+Remote read-back confirmed: `hermes-skills` `main` = `baa2ca5` (matches local) and the self-evolution
+cycle branch = `8fdf03a` (matches local).
+
+**Not done / limitation:** the `mnemosyne_remember` / `mnemosyne_batch` memory tools are **not exposed
+in the cron toolset** (tool search finds no such tool in this context), so no durable memory entry was
+written this cycle. The cycle report itself is persisted in three places (self-evolution repo,
+`hermes-skills` backup, and the skill's own `references/` dir).
 
 ## Blocker / caveat
 
