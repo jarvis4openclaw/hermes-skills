@@ -1,12 +1,26 @@
 ---
 name: heartmula
-description: "HeartMuLa: Suno-like song generation from lyrics + tags."
-version: 1.0.0
+description: "Generate full songs locally from lyrics plus style tags with HeartMuLa (heartlib) — open-source Apache-2.0 music foundation models (3B/7B) with the HeartCodec vocoder, plus the setup work (dependency pins, RoPE and codec patches, checkpoint downloads) and the parameter tuning. Use for offline or self-hosted AI music generation, a Suno alternative, or heartlib installation. Not for speech/TTS, transcription, or audio repair."
+version: 1.1.0
 platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [music, audio, generation, ai, heartmula, heartcodec, lyrics, songs]
-    related_skills: [audiocraft]
+    related_skills: [kittentts-server, f5-tts-setup, audiocraft, social-media-transcription]
+    trigger_conditions:
+      - "generate a song from lyrics"
+      - "make music with AI locally"
+      - "open source Suno alternative"
+      - "HeartMuLa"
+      - "heartlib"
+      - "generate music from tags"
+      - "offline music generation"
+      - "turn lyrics into a song"
+      - "install HeartMuLa"
+      - "AI song with vocals"
+      - "generate an mp3 from a text prompt"
+      - "music generation model on my GPU"
+      - "Suno but self-hosted"
 ---
 
 # HeartMuLa - Open-Source Music Generation
@@ -23,6 +37,19 @@ HeartMuLa is a family of open-source music foundation models (Apache-2.0) that g
 - User wants an open-source Suno alternative
 - User wants local/offline music generation
 - User asks about HeartMuLa, heartlib, or AI music generation
+- Setting up heartlib on a fresh machine: venv, the dependency upgrades, the two source patches, checkpoint download
+- Choosing model size / device split / `--lazy_load` for the VRAM actually available
+- Tuning output: `--temperature`, `--topk`, `--cfg_scale`, `--max_audio_length_ms`
+- Diagnosing a run that OOMs, produces silence, or ignores the style tags
+
+## Not For
+
+- **Text-to-speech, voice cloning or dubbing** → use `kittentts-server` (or `f5-tts-setup` to stand one up) instead.
+- **Music generation with MusicGen / AudioCraft** → use `audiocraft` instead; this skill covers HeartMuLa only.
+- **Transcribing lyrics or speech from an existing audio file** → use `social-media-transcription` instead.
+- **Downloading or converting media files** (yt-dlp, format conversion) → use `social-video-download` instead.
+- **Building the model itself** (training, fine-tuning, quantization) — nothing here trains; the checkpoints are downloaded and run as-is.
+- **A generic "install a Python ML project" request** with no HeartMuLa content — follow the project's own README.
 
 ## Hardware Requirements
 - **Minimum**: 8GB VRAM with `--lazy_load true` (loads/unloads models sequentially)
@@ -158,11 +185,48 @@ Bridge lyrics...
 - Output: MP3, 48kHz stereo, 128kbps
 
 ## Pitfalls
-1. **Do NOT use bf16 for HeartCodec** — degrades audio quality. Use fp32 (default).
-2. **Tags may be ignored** — known issue (#90). Lyrics tend to dominate; experiment with tag ordering.
-3. **Triton not available on macOS** — Linux/CUDA only for GPU acceleration.
-4. **RTX 5080 incompatibility** reported in upstream issues.
-5. The dependency pin conflicts require the manual upgrades and patches described above.
+
+1. **HeartCodec must not run in bf16** — bf16 degrades audio quality audibly. Keep the default
+   `--codec_dtype float32`; only HeartMuLa itself wants bf16 (`--mula_dtype bfloat16`).
+
+2. **Tags are often ignored** — upstream issue #90: lyrics dominate the conditioning and style tags
+   land weakly or not at all. Reorder the tags (put the most important style first), shorten the
+   lyrics, and re-generate; do not promise the user an exact style match.
+
+3. **Generation OOMs on an 8–16GB card without `--lazy_load true`** — both models resident at once
+   need more VRAM than the 3B model alone. Pass `--lazy_load true` (peak ≈6.2GB) and expect 30–60s of
+   reload overhead per song; verify with the "CUDA memory" lines in the output.
+
+4. **The pinned dependencies conflict with current packages (as of Feb 2026)** — `datasets` and
+   `transformers` must be upgraded inside the venv before the model loads. Skipping this shows up as an
+   import error or a `huggingface-hub` API mismatch, not as an obvious dependency failure.
+
+5. **The RoPE cache is never rebuilt after meta-device loading** — `from_pretrained` builds the model on
+   the meta device, so `Llama3ScaledRoPE.rope_init()` skips cache construction and never re-runs on the
+   real device. Apply Patch 1 in `setup_caches` (re-init every `Llama3ScaledRoPE` whose cache is not
+   built) or generation produces garbage with no error.
+
+6. **Patching only one `HeartCodec.from_pretrained()` call site** — there are two (eager load in
+   `__init__`, lazy load in the `codec` property). Both need `ignore_mismatched_sizes=True`; the lazy
+   path is the one `--lazy_load true` actually hits, so a half-patch looks fine until you enable lazy
+   loading.
+
+7. **Missing or misplaced checkpoints** — `hf download --local-dir './ckpt'` for the generator plus
+   `./ckpt/HeartMuLa-oss-3B` and `./ckpt/HeartCodec-oss` into the exact directory layout the code
+   expects. A wrong path surfaces as a generic load failure, not a "file not found".
+
+8. **No GPU: CPU mode technically works and is unusable in practice** — `--mula_device cpu
+   --codec_device cpu` needs ~12GB+ free RAM and can take 30–60+ minutes per song versus ~4 minutes on
+   a GPU. Recommend a cloud GPU (Colab T4, Lambda) or the online demo instead of "just waiting".
+
+9. **Triton is unavailable on macOS** — GPU acceleration is Linux/CUDA only; Apple Silicon falls back to
+   the CPU path above. Set expectations before installing.
+
+10. **RTX 5080 reports incompatibility upstream** — check the issue tracker before promising a 50-series
+    card will work; the workaround may lag the hardware.
+
+11. **macOS/Linux-only install assumptions** — the project targets Linux; on macOS expect CPU-only speed.
+    Windows is untested here, so treat it as an experiment rather than a supported path.
 
 ## Links
 - Repo: https://github.com/HeartMuLa/heartlib
